@@ -54,6 +54,12 @@ FIXTURE_ROWS = [
     # GK — sweeper profile (high interceptions)
     [10, "Irene Sweeper", "GK",      "Liverpool", "eng Premier League",
      1200, 13.3, 0, 0, 0, 0, 0, 0, 10, 30, 72.0, 3],
+    # Outfield DF — wingback profile with very high crosses (wide creator archetype)
+    [11, "Ivan Wingback", "DF",      "Chelsea", "eng Premier League",
+     1100, 12.2, 2, 5, 10, 4, 80, 18, 12, None, None, None],
+    # Outfield MF — advanced playmaker, high assists (deep creator archetype)
+    [12, "Jack Playmaker", "MF",     "Liverpool", "eng Premier League",
+     950, 10.6, 3, 8, 15, 7, 20, 12, 8, None, None, None],
 ]
 
 

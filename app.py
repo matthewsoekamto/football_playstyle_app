@@ -91,6 +91,14 @@ def render_sidebar_filters(clustered_data):
 def render_playstyle_explorer(filtered_df, outfield_features, gk_features):
     st.subheader("Playstyle Explorer")
 
+    st.info(
+        "ℹ️ Playstyles are clustered from goals, assists, shots, crosses, "
+        "tackles, and interceptions per 90. Dribbling and progressive carrying "
+        "data is not available in this dataset, which limits separation between "
+        "wide attackers who cut inside and shoot vs. those who cross or carry. "
+        "This will be improved when possession data is sourced."
+    )
+
     outfield_profiles = get_cluster_profiles(
         filtered_df[filtered_df["primary_position"] != "GK"],
         outfield_features,

@@ -92,11 +92,11 @@ flowchart LR
     Split -- Yes --> GK[GK: 4 features<br/>saves_p90, save%, cs_p90, int_p90]
     OF --> OFS[StandardScaler]
     GK --> GKS[StandardScaler]
-    OFS --> OFK[KMeans k=5, seed=42]
+    OFS --> OFK[KMeans k=8, seed=42]
     GKS --> GKK[KMeans k=2, seed=42]
-    OFK --> OFC[5 cluster centroids]
+    OFK --> OFC[8 cluster centroids]
     GKK --> GKC[2 cluster centroids]
-    OFC --> OFM[Match to nearest of 5<br/>OUTFIELD_ARCHETYPES]
+    OFC --> OFM[Match to nearest of 8<br/>OUTFIELD_ARCHETYPES]
     GKC --> GKM[Match to nearest of 2<br/>GK_ARCHETYPES]
     OFM --> Label[playstyle_cluster label]
     GKM --> Label
@@ -104,7 +104,9 @@ flowchart LR
     Concat --> Output[clustered_data]
 ```
 
-Archetype matching (`_assign_labels_from_archetypes`) is a **second, independent** `StandardScaler`, fit only on the 5 (or 2) cluster centroids, then applied to the hand-authored archetype vectors, then greedily nearest-matched with de-duplication (`used_names`). This is a deliberate design choice with a known statistical caveat — see `ML_GUIDELINES.md §Archetype Matching` and `DECISIONS.md`.
+Archetype matching (`_assign_labels_from_archetypes`) reuses the **player-level** `StandardScaler` fitted in `group_players` (the same `scaler_out` / `scaler_gk`), rather than fitting a separate scaler on the centroids alone. This anchors the archetype-matching distance metric to the real data distribution. Each cluster receives its true nearest archetype by Euclidean distance; if the best match exceeds a configurable threshold (default 3.5 standardized units), the cluster is labelled "Mixed Profile" instead — see `DECISIONS.md` (ADR-009) and `ML_GUIDELINES.md §3`.
+
+The matching is **non-greedy and non-deduplicating**: multiple clusters can share the same archetype name if that is their true nearest match. This is more honest than the previous forced-unique greedy approach (pre-Option C).
 
 ## 5. User Flow
 
@@ -134,7 +136,7 @@ There is currently **no configuration file, environment variable, or CLI argumen
 |---|---|---|
 | `"data/players_data_light-2025_2026.csv"` | `app.py` (`load_app_data` call), `data_loader.py` / `model_engine.py` `__main__` blocks | Dataset filename (relative to project root) |
 | `270` | `data_loader.load_and_clean_data` | Minimum minutes played to qualify |
-| `5`, `2` | `model_engine.group_players` | K for outfield / GK KMeans |
+| `8`, `2` | `model_engine.group_players` | K for outfield / GK KMeans (k=8 per Option C) |
 | `42` | `model_engine.group_players` | Random seed |
 | `OUTFIELD_ARCHETYPES`, `GK_ARCHETYPES` | `model_engine.py` | Hand-authored centroid targets for labeling |
 

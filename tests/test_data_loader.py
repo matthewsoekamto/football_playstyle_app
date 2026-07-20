@@ -48,9 +48,9 @@ class TestLoadAndCleanData:
     def test_row_count_after_filter(self, fixture_csv_path):
         """Only fixture rows with Min >= 270 survive."""
         df = load_and_clean_data(fixture_csv_path)
-        # Fixture: 10 rows total, 1 below threshold (Frank, Min=100)
-        assert len(df) == 9, (
-            f"Expected 9 rows after Min>=270 filter, got {len(df)}"
+        # Fixture: 12 rows total, 1 below threshold (Frank, Min=100)
+        assert len(df) == 11, (
+            f"Expected 11 rows after Min>=270 filter, got {len(df)}"
         )
 
 

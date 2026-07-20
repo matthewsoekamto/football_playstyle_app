@@ -39,9 +39,9 @@ Data flow on cold cache: `CSV → data_loader → model_engine.group_players →
 
 ## Key Design Points
 
-- **Two independent KMeans models** — outfield (6 features, k=5) and GK (4 features, k=2). Kept separate because GK and outfield stat distributions are incomparable. The `cluster_id` values from each model are not meaningful across groups; the human-readable `playstyle_cluster` label is what's used downstream.
-- **Archetype labeling** — cluster centroids are matched to hand-authored archetype vectors (`OUTFIELD_ARCHETYPES`, `GK_ARCHETYPES`) by greedy nearest-neighbor with de-duplication (`_assign_labels_from_archetypes`). Known issue: the matching `StandardScaler` is fit on only the centroids (5 or 2 points), not the full player distribution. This is tracked as ML-01.
-- **Playstyle labels** — currently 5 outfield + 2 GK archetypes. An Option C plan exists to expand to 8 outfield archetypes. The archetype-matching distance function has the scaler-fragility problem above.
+- **Two independent KMeans models** — outfield (6 features, k=8) and GK (4 features, k=2). Kept separate because GK and outfield stat distributions are incomparable. The `cluster_id` values from each model are not meaningful across groups; the human-readable `playstyle_cluster` label is what's used downstream.
+- **Archetype labeling** — cluster centroids are matched to hand-authored archetype vectors (`OUTFIELD_ARCHETYPES`, `GK_ARCHETYPES`) by non-greedy nearest-neighbor with a distance threshold fallback (`_assign_labels_from_archetypes`). The matching `StandardScaler` reuses the player-level scalers from `group_players` (fixed ML-01). Multiple clusters can share a label if they're all closest to the same archetype. A cluster whose best match exceeds the 3.5-unit threshold gets "Mixed Profile".
+- **Playstyle labels** — currently 8 outfield + 2 GK archetypes (Option C implemented). The 8 outfield archetypes are: Elite Finishers, Advanced Attackers, Wide Creators, Deep Creators, Direct Attackers, Ball-Winning Anchors, Defensive Anchors, Utility / Depth Players.
 - **`primary_position`** — derived as the first token of comma-separated `Pos` column (e.g., `"MF,FW"` → `"MF"`). Per `DECISIONS.md` ADR-003, this is a deliberate simplification. 620 players in the dataset have multi-position entries (most common: `MF,FW` at 217).
 - **Per-90 normalization** — all count stats used in clustering are divided by the `90s` column. Percentage-type stats (`save%`) are used raw. Zero-minutes guard: `90s.replace(0, pd.NA)` → `.fillna(0)`.
 - **State management** — zero `st.session_state`. Streamlit's rerun model handles all interactivity.
@@ -71,7 +71,7 @@ Data flow on cold cache: `CSV → data_loader → model_engine.group_players →
 - **STREAMLIT_GUIDELINES.md** — UI conventions (layout, chart template, empty states)
 - **TESTING_GUIDE.md** — test expectations per module
 - **TASK_BACKLOG.md** — tracked tech debt items (ML-01, SEC-01, STYLE-01, etc.)
-- **OPTION_C_PLAN.md** — proposed refactoring to 8 archetypes (not yet implemented)
+- **OPTION_C_PLAN.md** — Option C refactoring to 8 archetypes (✅ implemented in Phase 4C)
 
 The CONVENTION: `PROJECT_CONSTITUTION.md > everything else in /docs > code > your best guess`. If a doc and code disagree, that's a bug in whichever is stale — fix the doc in the same change as the code.
 
@@ -79,11 +79,21 @@ The CONVENTION: `PROJECT_CONSTITUTION.md > everything else in /docs > code > you
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
 
+### 2026-07-21 — Phase 4C: Option C implemented (8 outfield archetypes)
+- **Implemented:** Option C refactoring per `OPTION_C_PLAN.md` and `TASK_BACKLOG.md`.
+- **Changed:** `OUTFIELD_ARCHETYPES` expanded from 5 to 8 entries (Elite Finishers, Advanced Attackers, Wide Creators, Deep Creators, Direct Attackers, Ball-Winning Anchors, Defensive Anchors, Utility / Depth Players).
+- **Changed:** `KMeans(n_clusters=5)` → `KMeans(n_clusters=8)` for outfield players.
+- **Changed:** `_assign_labels_from_archetypes` replaced greedy "no repeats" constraint with non-greedy nearest-neighbour + distance threshold (3.5) → "Mixed Profile" fallback.
+- **Fixed (ML-01):** `_assign_labels_from_archetypes` now accepts the player-level `scaler_out`/`scaler_gk` from `group_players`, anchoring archetype-matching distances to the real data distribution instead of fitting a scaler on just the centroid points.
+- **Fixed (ML-01 nuance):** The threshold fallback prevented GK clusters from being forced into "Sweeper-Keepers" — both GK centroids are genuinely closer to "Shot-Stoppers" in this season's data. The old greedy code forced the second label.
+- **Added:** UI info note in `render_playstyle_explorer` about missing dribbling data.
+- **Tests updated:** 2 new tests (`test_labels_use_raw_archetype_names`, `test_shared_labels_under_non_greedy`) replace the old `test_each_cluster_has_unique_label`. Fixture expanded to 12 rows (2 new outfield players) to support K=8. Expected row count in data loader test updated to 11. 32/32 tests passing.
+- **Next items (still unaddressed):** STYLE-01 (unused search_query param), ML-04 (evaluation metrics), DEP-01 (gitignore), CI-01 (CI pipeline), ML-02 (scope percentiles). Option C plan is now complete — remove from "next items".
+
 ### 2026-07-20 — Initial review of CLAUDE.md accuracy
 - **Corrected:** `217 multi-position entries` → `620` (217 was only the `MF,FW` subset).
 - **Corrected:** `~194 GK after Min≥270` → `~155 GK` (194 was the pre-filter count; GKs tend to log fewer minutes).
 - **Confirmed:** All architecture, dependency, and design claims are accurate. One minor awareness point: the "152 duplicate names" count is `duplicated().sum()` (rows after first), covering 151 unique names — one player (Nicolás González) appears 3× across 3 clubs.
-- **Next items (known but unaddressed):** ML-01 (scaler fit on centroids only), STYLE-01 (unused search_query param), Option C plan (8 archetypes).
 
 ## External Dependencies
 

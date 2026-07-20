@@ -101,19 +101,121 @@ class TestClusterOutput:
             "Some outfield rows missing playstyle label"
         )
 
-    def test_each_cluster_has_unique_label(self, fixture_csv_path):
-        """No two clusters share the same playstyle name."""
+    def test_labels_use_raw_archetype_names(self, fixture_csv_path):
+        """Every playstyle label is an archetype name from OUTFIELD_ARCHETYPES
+        or GK_ARCHETYPES (or "Mixed Profile" if beyond threshold), never a
+        synthetic or truncated string.
+
+        With K=8 outfield + K=2 GK the non-greedy labeler may assign the
+        same archetype name to multiple clusters — that is correct behaviour
+        (honest nearest-neighbour, not forced-unique).
+        """
+        from model_engine import OUTFIELD_ARCHETYPES, GK_ARCHETYPES
         result = _run_clustering(fixture_csv_path)
+
+        outfield_archetypes = set(OUTFIELD_ARCHETYPES.keys()) | {"Mixed Profile"}
+        gk_archetypes = set(GK_ARCHETYPES.keys()) | {"Mixed Profile"}
+
+        outfield_labels = result.loc[
+            result["primary_position"] != "GK", "playstyle_cluster"
+        ].unique()
+        gk_labels = result.loc[
+            result["primary_position"] == "GK", "playstyle_cluster"
+        ].unique()
+
+        bad_outfield = set(outfield_labels) - outfield_archetypes
+        assert len(bad_outfield) == 0, (
+            f"Outfield labels not in archetype set: {bad_outfield}"
+        )
+        bad_gk = set(gk_labels) - gk_archetypes
+        assert len(bad_gk) == 0, (
+            f"GK labels not in archetype set: {bad_gk}"
+        )
+
+    def test_shared_labels_under_non_greedy(self, fixture_csv_path):
+        """With K=8 outfield on a small fixture, at least one archetype
+        label is shared across multiple cluster IDs, proving the non-greedy
+        assignment is active (no forced-unique constraint)."""
+        result = _run_clustering(fixture_csv_path)
+        outfield = result[result["primary_position"] != "GK"].copy()
+
         label_to_cluster = (
-            result[["cluster_id", "playstyle_cluster"]]
+            outfield[["cluster_id", "playstyle_cluster"]]
             .drop_duplicates()
             .groupby("playstyle_cluster")["cluster_id"]
             .nunique()
         )
-        duplicates = label_to_cluster[label_to_cluster > 1]
-        assert len(duplicates) == 0, (
-            f"Labels assigned to multiple clusters: {duplicates.to_dict()}. "
-            "The archetype matching may have broken deduplication."
+        shared = label_to_cluster[label_to_cluster > 1]
+        assert len(shared) >= 1, (
+            "Expected at least one label shared across clusters "
+            "with the non-greedy labeler (9 rows, K=8), "
+            f"but all labels are unique: {label_to_cluster.to_dict()}. "
+            "This means every KMeans centroid happened to map to a "
+            "different archetype, which is vanishingly unlikely."
+        )
+
+    def test_assign_labels_allows_shared_names(self):
+        """_assign_labels_from_archetypes correctly assigns the same
+        archetype name to two different clusters when both are closest
+        to that archetype — proving the non-greedy constraint is active."""
+        from model_engine import _assign_labels_from_archetypes
+        from sklearn.preprocessing import StandardScaler
+        import numpy as np
+
+        # Two centroids deliberately close to the first archetype
+        centroids = pd.DataFrame(
+            {"gls_p90": [0.48, 0.45], "sh_p90": [3.1, 3.0],
+             "ast_p90": [0.1, 0.1], "crs_p90": [0.5, 0.5],
+             "tklw_p90": [0.5, 0.5], "int_p90": [0.3, 0.3]},
+            index=[0, 1],
+        )
+        archetypes = {
+            "Elite Finishers": {"gls_p90": 0.5, "sh_p90": 3.2,
+                                "ast_p90": 0.15, "crs_p90": 0.8,
+                                "tklw_p90": 0.6, "int_p90": 0.3},
+            "Wide Creators": {"gls_p90": 0.1, "sh_p90": 1.0,
+                              "ast_p90": 0.2, "crs_p90": 4.5,
+                              "tklw_p90": 1.0, "int_p90": 0.5},
+        }
+        features = ["gls_p90", "ast_p90", "sh_p90", "crs_p90", "tklw_p90", "int_p90"]
+
+        # Fit a scaler on a wider data distribution so the centroid scaling
+        # is not degenerate (avoiding the ML-01 fallback path with only 2 points)
+        scaler = StandardScaler()
+        scaler.fit(np.array([
+            [0.5, 0.2, 3.0, 1.0, 1.0, 0.5],
+            [0.4, 0.2, 2.5, 2.0, 0.8, 0.4],
+            [0.3, 0.25, 1.5, 3.0, 0.6, 0.3],
+        ]))
+
+        labels = _assign_labels_from_archetypes(
+            centroids, archetypes, features, scaler=scaler, threshold=5.0,
+        )
+        assert labels[0] == "Elite Finishers", f"Expected 'Elite Finishers', got '{labels[0]}'"
+        assert labels[1] == "Elite Finishers", f"Expected 'Elite Finishers', got '{labels[1]}'"
+
+    def test_mixed_profile_fallback(self):
+        """_assign_labels_from_archetypes returns 'Mixed Profile' when no
+        archetype is within the threshold distance."""
+        from model_engine import _assign_labels_from_archetypes
+
+        # A centroid far from every archetype
+        centroids = pd.DataFrame(
+            {"gls_p90": [5.0], "sh_p90": [15.0], "ast_p90": [0.01],
+             "crs_p90": [0.01], "tklw_p90": [0.01], "int_p90": [0.01]},
+            index=[99],
+        )
+        archetypes = {
+            "Low": {"gls_p90": 0.1, "sh_p90": 0.5, "ast_p90": 0.1,
+                    "crs_p90": 0.5, "tklw_p90": 0.5, "int_p90": 0.3},
+            "Very Low": {"gls_p90": 0.05, "sh_p90": 0.3, "ast_p90": 0.05,
+                         "crs_p90": 0.3, "tklw_p90": 0.3, "int_p90": 0.2},
+        }
+        features = ["gls_p90", "ast_p90", "sh_p90", "crs_p90", "tklw_p90", "int_p90"]
+
+        labels = _assign_labels_from_archetypes(centroids, archetypes, features, threshold=1.0)
+        assert labels[99] == "Mixed Profile", (
+            f"Expected 'Mixed Profile' for outlier centroid, got '{labels[99]}'"
         )
 
 

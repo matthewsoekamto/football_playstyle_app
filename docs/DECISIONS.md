@@ -115,6 +115,26 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Each record below is recons
 
 ---
 
+## ADR-009: Option C — 8 outfield archetypes, non-greedy labelling, player-level scaler
+
+**Context:** The original 5-archetype outfield labelling (ADR-002) had two structural problems confirmed by data analysis. First, the greedy "no repeats" constraint in `_assign_labels_from_archetypes` forced the 4th and 5th clusters to take suboptimal names (wrong labels on 3 of 5 clusters). Second, K=5 lacked a winger/wide-attacker archetype, causing players like Antoine Semenyo (a Bournemouth winger) to be labelled "Ball-Winning Anchors" — a near-inversion of his actual profile. Third, `_assign_labels_from_archetypes` fit a separate `StandardScaler` on only 5 (or 2) centroid points, producing statistically thin distance estimates for the archetype match (ML-01).
+
+**Chosen combination ("Option C"):**
+- Increase outfield KMeans from `k=5` to `k=8` (GK stays at `k=2`).
+- Replace the 5-entry `OUTFIELD_ARCHETYPES` with 8 archetypes: Elite Finishers, Advanced Attackers, Wide Creators, Deep Creators, Direct Attackers, Ball-Winning Anchors, Defensive Anchors, Utility / Depth Players.
+- Replace greedy "no repeats" `_assign_labels_from_archetypes` with a non-greedy nearest-neighbour assignment that allows shared labels and has a fallback threshold (3.5 standardized units → "Mixed Profile").
+- Pass the **player-level** `scaler_out` / `scaler_gk` from `group_players` into `_assign_labels_from_archetypes`, so the archetype-matching distance is anchored to the real data distribution rather than to this run's specific cluster centroids (fixes ML-01 for this path).
+
+**Why:** K=8 better fits the natural structure in the data (the elbow analysis shows diminishing returns after 8). The non-greedy label assignment is more honest — two clusters whose profiles are genuinely similar to the same archetype should not be forced into distinct labels. The player-level scaler makes the distance threshold statistically meaningful, which prevents future mislabeling if data distribution shifts.
+
+**Tradeoffs:** GK clustering with the player-level scaler now correctly shows both GK clusters as "Shot-Stoppers" (since neither centroid is closer to the "Sweeper-Keepers" archetype in the real data distribution). The old code forced one GK cluster to "Sweeper-Keepers" via the greedy de-duplication; the new code is more honest but means the app currently shows only one GK archetype. This could be addressed by re-tuning the GK archetype centroid targets or collecting richer GK distribution data.
+
+**Known limitation:** The dribbling-signal data ceiling documented in `OPTION_C_PLAN.md` still applies — `OUTFIELD_FEATURES` (`gls_p90`, `ast_p90`, `sh_p90`, `crs_p90`, `tklw_p90`, `int_p90`) cannot distinguish "cuts inside and shoots" wingers from penalty-box strikers. The "Advanced Attackers" label (where Semenyo now lands) is more accurate than "Ball-Winning Anchors" but is still a partial improvement, not a full fix — see `OPTION_C_PLAN.md` for the dribbling-data path.
+
+**Supersedes:** ADR-002's scaler-fragility and greedy-matching specifics. The core approach (archetype matching via distance to hand-authored centroid targets) is retained; the implementation details (scaler source, deduplication strategy) are updated.
+
+---
+
 ## ADR-008: Duplicate player names resolved via squad-suffix labels, not IDs
 
 **Context:** 152 rows in the raw dataset share a `Player` name with at least one other row (mid-season transfers create two rows for one person, and some names are simply common).

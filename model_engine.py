@@ -18,44 +18,36 @@ GK_FEATURES = ["saves_p90", "save%", "cs_p90", "int_p90"]
 
 OUTFIELD_ARCHETYPES = {
     "Elite Finishers": {
-        "gls_p90": 0.45,
-        "ast_p90": 0.20,
-        "sh_p90": 3.0,
-        "crs_p90": 1.0,
-        "tklw_p90": 1.0,
-        "int_p90": 0.5,
+        "gls_p90": 0.50, "ast_p90": 0.15, "sh_p90": 3.2,
+        "crs_p90": 0.8, "tklw_p90": 0.6, "int_p90": 0.3,
     },
-    "Creative Playmakers": {
-        "gls_p90": 0.15,
-        "ast_p90": 0.35,
-        "sh_p90": 1.5,
-        "crs_p90": 4.0,
-        "tklw_p90": 1.5,
-        "int_p90": 0.8,
+    "Advanced Attackers": {
+        "gls_p90": 0.35, "ast_p90": 0.20, "sh_p90": 2.4,
+        "crs_p90": 1.5, "tklw_p90": 0.8, "int_p90": 0.4,
+    },
+    "Wide Creators": {
+        "gls_p90": 0.10, "ast_p90": 0.20, "sh_p90": 1.0,
+        "crs_p90": 4.5, "tklw_p90": 1.0, "int_p90": 0.5,
+    },
+    "Deep Creators": {
+        "gls_p90": 0.08, "ast_p90": 0.25, "sh_p90": 1.2,
+        "crs_p90": 2.5, "tklw_p90": 1.5, "int_p90": 0.8,
+    },
+    "Direct Attackers": {
+        "gls_p90": 0.20, "ast_p90": 0.10, "sh_p90": 1.8,
+        "crs_p90": 0.8, "tklw_p90": 0.8, "int_p90": 0.4,
     },
     "Ball-Winning Anchors": {
-        "gls_p90": 0.05,
-        "ast_p90": 0.08,
-        "sh_p90": 0.8,
-        "crs_p90": 1.5,
-        "tklw_p90": 3.5,
-        "int_p90": 3.0,
+        "gls_p90": 0.05, "ast_p90": 0.08, "sh_p90": 0.8,
+        "crs_p90": 1.2, "tklw_p90": 3.5, "int_p90": 3.0,
     },
-    "Defensive Rotators": {
-        "gls_p90": 0.08,
-        "ast_p90": 0.12,
-        "sh_p90": 1.2,
-        "crs_p90": 2.0,
-        "tklw_p90": 2.5,
-        "int_p90": 2.0,
+    "Defensive Anchors": {
+        "gls_p90": 0.03, "ast_p90": 0.06, "sh_p90": 0.5,
+        "crs_p90": 1.0, "tklw_p90": 2.0, "int_p90": 2.0,
     },
     "Utility / Depth Players": {
-        "gls_p90": 0.10,
-        "ast_p90": 0.10,
-        "sh_p90": 1.0,
-        "crs_p90": 1.5,
-        "tklw_p90": 1.5,
-        "int_p90": 1.2,
+        "gls_p90": 0.08, "ast_p90": 0.08, "sh_p90": 0.9,
+        "crs_p90": 1.2, "tklw_p90": 1.2, "int_p90": 1.0,
     },
 }
 
@@ -87,29 +79,43 @@ def _archetype_matrix(archetypes, feature_cols):
     return archetype_names, matrix
 
 
-def _assign_labels_from_archetypes(centroids, archetypes, feature_cols):
+def _assign_labels_from_archetypes(centroids, archetypes, feature_cols, scaler=None, threshold=3.5):
+    """Assign each cluster its true nearest archetype by Euclidean distance.
+
+    Unlike the previous greedy-with-deduplication approach, this version lets
+    multiple clusters share a label if that's genuinely their closest archetype.
+    If no archetype is within ``threshold`` standardized units, the cluster is
+    labelled "Mixed Profile" instead of forcing a misleading name.
+
+    When ``scaler`` is provided (the player-level StandardScaler from
+    ``group_players``), it is used to transform both centroids and archetypes
+    so distances are anchored to the real data distribution. Otherwise a scaler
+    is fit on the centroids alone — sufficient for outfield K=8 where centroids
+    are numerous enough, but unreliable for GK K=2 (ML-01).
+
+    See ADR-009 and OPTION_C_PLAN.md for the rationale.
+    """
     archetype_names, archetype_matrix = _archetype_matrix(archetypes, feature_cols)
 
-    scaler = StandardScaler()
-    scaled_centroids = scaler.fit_transform(centroids[feature_cols].values)
-    scaled_archetypes = scaler.transform(archetype_matrix)
+    if scaler is not None:
+        scaled_centroids = scaler.transform(centroids[feature_cols].values)
+        scaled_archetypes = scaler.transform(archetype_matrix)
+    else:
+        scaler_fallback = StandardScaler()
+        scaled_centroids = scaler_fallback.fit_transform(centroids[feature_cols].values)
+        scaled_archetypes = scaler_fallback.transform(archetype_matrix)
 
     labels = {}
-    used_names = set()
     for index, cluster_id in enumerate(centroids.index):
         centroid_vector = scaled_centroids[index].reshape(1, -1)
         distances = np.linalg.norm(scaled_archetypes - centroid_vector, axis=1)
-        ranked_indices = np.argsort(distances)
+        best_idx = np.argmin(distances)
+        best_dist = distances[best_idx]
 
-        chosen_name = archetype_names[ranked_indices[0]]
-        for idx in ranked_indices:
-            candidate = archetype_names[idx]
-            if candidate not in used_names:
-                chosen_name = candidate
-                break
-
-        labels[cluster_id] = chosen_name
-        used_names.add(chosen_name)
+        if best_dist <= threshold:
+            labels[cluster_id] = archetype_names[best_idx]
+        else:
+            labels[cluster_id] = "Mixed Profile"
 
     return labels
 
@@ -156,7 +162,7 @@ def group_players(df):
         scaler_out = StandardScaler()
         scaled_out = scaler_out.fit_transform(outfield_data)
 
-        kmeans_out = KMeans(n_clusters=5, random_state=42, n_init=10)
+        kmeans_out = KMeans(n_clusters=8, random_state=42, n_init=10)
         df_outfield["cluster_id"] = kmeans_out.fit_predict(scaled_out)
 
         centroids = df_outfield.groupby("cluster_id")[outfield_features].mean()
@@ -164,6 +170,7 @@ def group_players(df):
             centroids,
             OUTFIELD_ARCHETYPES,
             outfield_features,
+            scaler=scaler_out,
         )
         df_outfield["playstyle_cluster"] = df_outfield["cluster_id"].map(cluster_names)
 
@@ -181,6 +188,7 @@ def group_players(df):
             centroids,
             GK_ARCHETYPES,
             gk_features,
+            scaler=scaler_gk,
         )
         df_gk["playstyle_cluster"] = df_gk["cluster_id"].map(cluster_names)
 
