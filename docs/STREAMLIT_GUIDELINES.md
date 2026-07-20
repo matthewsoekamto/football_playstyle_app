@@ -62,7 +62,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Governs `app.py` and any fu
 
 ## 12. Error Messages
 
-- Current gap: `load_app_data("players_data_light-2025_2026.csv")` has no error handling — a missing file crashes the whole app with a raw traceback (see `STYLE_GUIDE.md §9`, `SECURITY_GUIDE.md`). The standard for user-facing errors going forward:
+- Current gap: `load_app_data("data/players_data_light-2025_2026.csv")` previously had no error handling — a missing file crashes the whole app with a raw traceback (see `STYLE_GUIDE.md §9`, `SECURITY_GUIDE.md`). The standard for user-facing errors going forward:
   - Wrap risky I/O in `try/except`.
   - On failure, use `st.error("Could not load the player dataset. Please check that the data file is present.")` (or similarly specific) and `st.stop()` to halt further rendering — never let the script continue with a `None`/empty DataFrame and produce a cascade of confusing secondary errors.
 - Empty-result states are already handled well and should be the template for new sections: `st.info("No playstyle profiles available for the current filters.")`, `st.info("Select a broader filter set to compare at least two players.")`, `st.info("Not enough performance stats available to generate a scatter plot.")` — always a `st.info`, always specific about *why* nothing is showing and, where possible, what the user can do about it.

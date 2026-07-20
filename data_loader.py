@@ -18,7 +18,18 @@ def _add_per90_rates(df, stats):
 
 @st.cache_data
 def load_and_clean_data(filepath):
-    df = pd.read_csv(filepath)
+    try:
+        df = pd.read_csv(filepath)
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"Dataset file not found: '{filepath}'. "
+            "Make sure the CSV file exists at the expected path."
+        )
+    except pd.errors.ParserError:
+        raise ValueError(
+            f"Could not parse the dataset file: '{filepath}'. "
+            "The file may be corrupted or in an unexpected format."
+        )
 
     df.columns = (
         df.columns.str.strip().str.lower().str.replace(" ", "_").str.replace("-", "_")
@@ -37,7 +48,7 @@ def load_and_clean_data(filepath):
 
 if __name__ == "__main__":
     try:
-        test_df = load_and_clean_data("players_data_light-2025_2026.csv")
+        test_df = load_and_clean_data("data/players_data_light-2025_2026.csv")
         print("SUCCESS: Data loaded and standardized perfectly!")
         print(f"Total players available: {len(test_df)}")
         print("\nAvailable cleaned columns sample:")

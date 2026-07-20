@@ -195,7 +195,7 @@ def get_clustered_data(filepath):
 if __name__ == "__main__":
     try:
         print("Loading data...")
-        my_data = load_and_clean_data("players_data_light-2025_2026.csv")
+        my_data = load_and_clean_data("data/players_data_light-2025_2026.csv")
 
         print("Running dual-engine clustering...")
         clustered_data = group_players(my_data)

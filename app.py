@@ -219,8 +219,15 @@ def render_h2h_section(filtered_df):
 st.set_page_config(page_title="Football Playstyle App", layout="wide")
 st.title("Football Playstyle Clustering App")
 
-with st.spinner("Loading dataset and calculating playstyles..."):
-    clustered_data = load_app_data("players_data_light-2025_2026.csv")
+try:
+    with st.spinner("Loading dataset and calculating playstyles..."):
+        clustered_data = load_app_data("data/players_data_light-2025_2026.csv")
+except FileNotFoundError as e:
+    st.error(str(e))
+    st.stop()
+except ValueError as e:
+    st.error(str(e))
+    st.stop()
 
 leagues, positions, squads, playstyles = render_sidebar_filters(clustered_data)
 

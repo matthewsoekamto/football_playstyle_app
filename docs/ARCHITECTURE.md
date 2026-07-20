@@ -15,7 +15,8 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This document is the single
 ├── features.py                     # Filtering, percentiles, display formatting, stat catalogs
 ├── charts.py                       # Plotly figure builders (pure functions, no Streamlit calls)
 ├── fetch_possession_stats.py       # Standalone/manual FBref scraper — NOT imported by the app
-├── players_data_light-2025_2026.csv# Bundled dataset (2,839 rows × 53 raw columns)
+├── data/                           # Dataset directory
+│   └── players_data_light-2025_2026.csv  # Bundled dataset (2,839 rows × 53 raw columns)
 ├── requirements.txt                # streamlit, pandas, scikit-learn, plotly
 └── README.md                       # Human-facing quickstart
 ```
@@ -131,7 +132,7 @@ There is currently **no configuration file, environment variable, or CLI argumen
 
 | Value | Location | Meaning |
 |---|---|---|
-| `"players_data_light-2025_2026.csv"` | `app.py` (`load_app_data` call), `data_loader.py` / `model_engine.py` `__main__` blocks | Dataset filename |
+| `"data/players_data_light-2025_2026.csv"` | `app.py` (`load_app_data` call), `data_loader.py` / `model_engine.py` `__main__` blocks | Dataset filename (relative to project root) |
 | `270` | `data_loader.load_and_clean_data` | Minimum minutes played to qualify |
 | `5`, `2` | `model_engine.group_players` | K for outfield / GK KMeans |
 | `42` | `model_engine.group_players` | Random seed |
