@@ -22,12 +22,9 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 
 ## HIGH
 
-### ML-01: Fix the archetype-matching `StandardScaler` fragility
-- **Priority:** High | **Difficulty:** Medium | **Impact:** Medium-High (affects label quality) | **Effort:** ~2-3 hours + manual validation of resulting labels
-- **Dependencies:** TEST-01 (ideally have a test harness before touching clustering)
-- **Files affected:** `model_engine.py` (`_assign_labels_from_archetypes`, `group_players`)
-- **Acceptance criteria:** The scaler used to compare cluster centroids against archetype vectors is fit on the real player-level feature distribution (reusing `scaler_out`/`scaler_gk` from `group_players`), not on the 5 (or 2) centroid points alone. Resulting playstyle labels are manually reviewed against the current output for sanity.
-- **Expected outcome:** More statistically sound, less run-to-run-fragile archetype labeling. See `DECISIONS.md` ADR-002, `ML_GUIDELINES.md §3`.
+### ML-01: Fix the archetype-matching `StandardScaler` fragility — ✅ RESOLVED (Phase 4C)
+- **Status:** RESOLVED by Phase 4C (Option C). `_assign_labels_from_archetypes` now accepts the player-level `scaler_out`/`scaler_gk` from `group_players` and uses those to transform both centroids and archetype vectors. The fallback (centroid-only scaler) remains as a code path for direct unit-test calls but is no longer the production path. See `DECISIONS.md` ADR-009, `ML_GUIDELINES.md §3`.
+- **Note:** The scaler-fix was implemented as part of the larger Option C refactor. No separate scaler-only change was needed.
 
 ### ML-02: Scope percentile computation to position-relevant stats
 - **Priority:** High | **Difficulty:** Low-Medium | **Impact:** Medium | **Effort:** ~2 hours
@@ -54,7 +51,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 
 ### DATA-01: Integrate possession stats from `fetch_possession_stats.py` into the pipeline
 - **Priority:** Medium | **Difficulty:** High | **Impact:** High (materially richer playstyle signal) | **Effort:** ~3-5 days
-- **Dependencies:** ML-01 (fix scaling fragility first — adding features will stress the archetype-matching logic further), TEST-01
+- **Dependencies:** TEST-01 (the scaler fragility ML-01 is now resolved — see ADR-009)
 - **Files affected:** `data_loader.py` (new loader/merge step), `model_engine.py` (`OUTFIELD_FEATURES`, `OUTFIELD_ARCHETYPES` re-tuning), `requirements.txt` (add `requests`, `beautifulsoup4`, `lxml` if the fetch step is formally adopted, or keep it purely as an offline pre-step)
 - **Acceptance criteria:** Possession/passing stats join the outfield feature set via the same per-90 normalization pipeline; `OUTFIELD_ARCHETYPES` centroid targets are re-validated (adding dimensions changes clustering geometry — this is not a drop-in change); resulting clusters are manually sanity-checked.
 - **Expected outcome:** Materially better playstyle differentiation (e.g. distinguishing possession-retaining midfielders from pressing ones, which the current 6-feature set cannot do). See `DECISIONS.md` ADR-005, `ML_GUIDELINES.md §14`, `PROJECT_SPEC.md §5`.
@@ -76,7 +73,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 ### ARCH-01: Extract hardcoded configuration into named constants with rationale comments
 - **Priority:** Medium | **Difficulty:** Low | **Impact:** Low-Medium | **Effort:** ~2 hours
 - **Dependencies:** None
-- **Files affected:** `data_loader.py` (`270` threshold), `model_engine.py` (`5`, `2`, `42`)
+- **Files affected:** `data_loader.py` (`270` threshold), `model_engine.py` (`8`, `2`, `42`, `3.5`)
 - **Acceptance criteria:** Each magic number becomes a named module-level constant (e.g. `MIN_MINUTES_THRESHOLD = 270  # three full 90-minute matches`) per `STYLE_GUIDE.md §14`.
 - **Expected outcome:** Slightly better readability and a natural place to hang future config-file wiring.
 

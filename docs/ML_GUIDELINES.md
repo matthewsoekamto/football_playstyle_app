@@ -18,7 +18,7 @@ This is **unsupervised, descriptive** clustering — there is no train/test spli
 ## 3. Scaling & Normalization
 
 - `StandardScaler` (mean 0, std 1) is the correct choice for K-Means, which is distance-based — this is already used correctly for both the outfield and GK feature matrices in `model_engine.group_players`.
-- **Known fragility (ADR-002):** the *second* `StandardScaler` inside `_assign_labels_from_archetypes` is fit on only the cluster centroids (n=5 or n=2 points), not on the underlying player-level data. Recommended fix direction (not yet implemented): reuse the *same, already-fitted* `scaler_out`/`scaler_gk` from `group_players` to transform both the centroids and the archetype vectors, rather than fitting a brand-new scaler on the tiny centroid sample. This keeps the archetype-matching distance metric anchored to the real data distribution instead of to this run's specific cluster geometry. Track as `TASK_BACKLOG.md` ML-01 before implementing — this is a documentation deliverable, not a code change, per the operating instructions for this doc set.
+- **ML-01 (fixed in Phase 4C / ADR-009):** the *second* `StandardScaler` inside `_assign_labels_from_archetypes` is now replaced. The function accepts the player-level `scaler_out`/`scaler_gk` from `group_players` and uses those to transform both centroids and archetype vectors, anchoring the archetype-matching distance metric to the real data distribution. When no scaler is provided (e.g. direct unit-test call), it falls back to fitting on the centroids — sufficient for larger k (8) but unreliable for small k (2). Track remaining scaler-adjacent concerns in `TASK_BACKLOG.md` ML-04 (evaluation metrics).
 
 ## 4. Data Cleaning
 
@@ -40,7 +40,7 @@ This is **unsupervised, descriptive** clustering — there is no train/test spli
 
 ## 8. K-Means Specifics
 
-- **k is fixed, not tuned**: `n_clusters=5` for outfield, `n_clusters=2` for goalkeepers, chosen to match the number of hand-authored archetypes (`OUTFIELD_ARCHETYPES`/`GK_ARCHETYPES`), not derived from an elbow/silhouette search. This is intentional — the product requirement is "5 named outfield styles and 2 named GK styles," not "however many clusters the data naturally forms." Do not "improve" this by auto-selecting k without a product conversation first (this would break the fixed archetype-matching design in ADR-002).
+- **k is fixed, not tuned**: `n_clusters=8` for outfield, `n_clusters=2` for goalkeepers, chosen to match the number of hand-authored archetypes (`OUTFIELD_ARCHETYPES`/`GK_ARCHETYPES`) and informed by an elbow analysis on the actual 2025/26 data (K=8 revealed natural groupings including Wide Creators, Advanced Attackers, and Direct Attackers that K=5 collapsed into forced mislabels). This is intentional — the product requirement is "8 named outfield styles and 2 named GK styles," not "however many clusters the data naturally forms." Do not "improve" this by auto-selecting k without a product conversation first (this would break the fixed archetype-matching design).
 - `n_init=10`: explicit and reproducible. Do not change to `n_init="auto"` without verifying the sklearn version behavior matches (see `requirements.txt`'s `scikit-learn>=1.3.0` floor) and confirming labels remain stable.
 - `random_state=42` is set on both `KMeans` calls. **This must never be removed or randomized** — reproducibility of playstyle labels across runs is a product requirement (`PROJECT_CONSTITUTION.md §8`), not just good practice.
 

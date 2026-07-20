@@ -91,6 +91,14 @@ def render_sidebar_filters(clustered_data):
 def render_playstyle_explorer(filtered_df, outfield_features, gk_features):
     st.subheader("Playstyle Explorer")
 
+    st.info(
+        "ℹ️ Playstyles are clustered from goals, assists, shots, crosses, "
+        "tackles, and interceptions per 90. Dribbling and progressive carrying "
+        "data is not available in this dataset, which limits separation between "
+        "wide attackers who cut inside and shoot vs. those who cross or carry. "
+        "This will be improved when possession data is sourced."
+    )
+
     outfield_profiles = get_cluster_profiles(
         filtered_df[filtered_df["primary_position"] != "GK"],
         outfield_features,
@@ -219,8 +227,15 @@ def render_h2h_section(filtered_df):
 st.set_page_config(page_title="Football Playstyle App", layout="wide")
 st.title("Football Playstyle Clustering App")
 
-with st.spinner("Loading dataset and calculating playstyles..."):
-    clustered_data = load_app_data("players_data_light-2025_2026.csv")
+try:
+    with st.spinner("Loading dataset and calculating playstyles..."):
+        clustered_data = load_app_data("data/players_data_light-2025_2026.csv")
+except FileNotFoundError as e:
+    st.error(str(e))
+    st.stop()
+except ValueError as e:
+    st.error(str(e))
+    st.stop()
 
 leagues, positions, squads, playstyles = render_sidebar_filters(clustered_data)
 
