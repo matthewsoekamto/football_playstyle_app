@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -25,76 +25,101 @@ pip install -r requirements-dev.txt            # dev deps (pytest)
 ## Architecture (5-Module Pipeline)
 
 ```
-app.py  (Streamlit orchestration — no ML/cleaning logic)
-  ├── charts.py      (pure Plotly figure builders)
-  ├── features.py    (filtering, percentiles, display formatting)
-  └── model_engine.py (KMeans clustering, archetype labeling)
-        └── data_loader.py  (CSV load, column normalization, per-90 rates)
-              └── data/players_data_light-2025_2026.csv
+app.py  (Streamlit orchestration â€” no ML/cleaning logic)
+  â”œâ”€â”€ charts.py      (pure Plotly figure builders)
+  â”œâ”€â”€ features.py    (filtering, percentiles, display formatting)
+  â””â”€â”€ model_engine.py (KMeans clustering, archetype labeling)
+        â””â”€â”€ data_loader.py  (CSV load, column normalization, per-90 rates)
+              â””â”€â”€ data/players_data_light-2025_2026.csv
 ```
 
 Dependency direction is strictly one-way. No module imports from `app.py`. `charts.py` and `features.py` are importable without Streamlit runtime.
 
-Data flow on cold cache: `CSV → data_loader → model_engine.group_players → app.load_app_data (adds percentiles + unique labels) → features.filter_dataframe → render sections`. Three `@st.cache_data` layers (CSV read, clustering, full load) keyed on filepath — CSV replacement without restart serves stale data.
+Data flow on cold cache: `CSV â†’ data_loader â†’ model_engine.group_players â†’ app.load_app_data (adds percentiles + unique labels) â†’ features.filter_dataframe â†’ render sections`. Three `@st.cache_data` layers (CSV read, clustering, full load) keyed on filepath â€” CSV replacement without restart serves stale data.
 
 ## Key Design Points
 
-- **Two independent KMeans models** — outfield (6 features, k=8) and GK (4 features, k=2). Kept separate because GK and outfield stat distributions are incomparable. The `cluster_id` values from each model are not meaningful across groups; the human-readable `playstyle_cluster` label is what's used downstream.
-- **Archetype labeling** — cluster centroids are matched to hand-authored archetype vectors (`OUTFIELD_ARCHETYPES`, `GK_ARCHETYPES`) by non-greedy nearest-neighbor with a distance threshold fallback (`_assign_labels_from_archetypes`). The matching `StandardScaler` reuses the player-level scalers from `group_players` (fixed ML-01). Multiple clusters can share a label if they're all closest to the same archetype. A cluster whose best match exceeds the 3.5-unit threshold gets "Mixed Profile".
-- **Playstyle labels** — currently 8 outfield + 2 GK archetypes (Option C implemented). The 8 outfield archetypes are: Elite Finishers, Advanced Attackers, Wide Creators, Deep Creators, Direct Attackers, Ball-Winning Anchors, Defensive Anchors, Utility / Depth Players.
-- **`primary_position`** — derived as the first token of comma-separated `Pos` column (e.g., `"MF,FW"` → `"MF"`). Per `DECISIONS.md` ADR-003, this is a deliberate simplification. 620 players in the dataset have multi-position entries (most common: `MF,FW` at 217).
-- **Per-90 normalization** — all count stats used in clustering are divided by the `90s` column. Percentage-type stats (`save%`) are used raw. Zero-minutes guard: `90s.replace(0, pd.NA)` → `.fillna(0)`.
-- **State management** — zero `st.session_state`. Streamlit's rerun model handles all interactivity.
+- **Two independent KMeans models** â€” outfield (6 features, k=8) and GK (4 features, k=2). Kept separate because GK and outfield stat distributions are incomparable. The `cluster_id` values from each model are not meaningful across groups; the human-readable `playstyle_cluster` label is what's used downstream.
+- **Archetype labeling** â€” cluster centroids are matched to hand-authored archetype vectors (`OUTFIELD_ARCHETYPES`, `GK_ARCHETYPES`) by non-greedy nearest-neighbor with a distance threshold fallback (`_assign_labels_from_archetypes`). The matching `StandardScaler` reuses the player-level scalers from `group_players` (fixed ML-01). Multiple clusters can share a label if they're all closest to the same archetype. A cluster whose best match exceeds the 3.5-unit threshold gets "Mixed Profile".
+- **Playstyle labels** â€” currently 8 outfield + 2 GK archetypes (Option C implemented). The 8 outfield archetypes are: Elite Finishers, Advanced Attackers, Wide Creators, Deep Creators, Direct Attackers, Ball-Winning Anchors, Defensive Anchors, Utility / Depth Players.
+- **`primary_position`** â€” derived as the first token of comma-separated `Pos` column (e.g., `"MF,FW"` â†’ `"MF"`). Per `DECISIONS.md` ADR-003, this is a deliberate simplification. 620 players in the dataset have multi-position entries (most common: `MF,FW` at 217).
+- **Per-90 normalization** â€” all count stats used in clustering are divided by the `90s` column. Percentage-type stats (`save%`) are used raw. Zero-minutes guard: `90s.replace(0, pd.NA)` â†’ `.fillna(0)`.
+- **State management** â€” zero `st.session_state`. Streamlit's rerun model handles all interactivity.
 
 ## Known Traps
 
 - `get_cluster_profiles` takes `playstyle_col="playstyle_cluster"` by default, but `app.py` calls it with `playstyle_col="Playstyle"` (the renamed column). Don't "simplify" by removing the parameter.
-- `primary_position` is derived in two places (`data_loader.load_and_clean_data` and defensively in `model_engine.group_players`) — both are intentional for different call paths.
-- `OUTFIELD_FEATURES` / `GK_FEATURES` (clustering input) and `EXPLORER_OUTFIELD_FEATURES` / `EXPLORER_GK_FEATURES` (radar display) are separate constants that currently match. They are allowed to diverge — don't merge them.
+- `primary_position` is derived in two places (`data_loader.load_and_clean_data` and defensively in `model_engine.group_players`) â€” both are intentional for different call paths.
+- `OUTFIELD_FEATURES` / `GK_FEATURES` (clustering input) and `EXPLORER_OUTFIELD_FEATURES` / `EXPLORER_GK_FEATURES` (radar display) are separate constants that currently match. They are allowed to diverge â€” don't merge them.
 - `fetch_possession_stats.py` is not dead code. It's a deliberately disconnected, manually-run FBref scraper. Don't delete it or wire it into the live app.
 - 152 duplicate player names exist in the dataset (mid-season transfers). `add_unique_player_labels` appends squad names only for duplicates. This is correct, not a data quality bug.
-- `filter_dataframe` has an unused `search_query` parameter (STYLE-01) — not a bug to fix as a drive-by, it's tracked separately.
+- `filter_dataframe` has an unused `search_query` parameter (STYLE-01) â€” not a bug to fix as a drive-by, it's tracked separately.
 
 ## Dataset
 
-`data/players_data_light-2025_2026.csv` — 2,839 rows × 53 columns, Big 5 European leagues (2025/26). After Min≥270 filter: 2,183 rows, ~155 GK, ~2,028 outfield (GK count drops from 194 to 155 because GKs tend to accrue fewer minutes than outfield players). FBref export shape with comma-flattened multi-index headers. GK-only stats (Saves, Save%, GA, CS, etc.) are empty for outfield rows.
+`data/players_data_light-2025_2026.csv` â€” 2,839 rows Ã— 53 columns, Big 5 European leagues (2025/26). After Minâ‰¥270 filter: 2,183 rows, ~155 GK, ~2,028 outfield (GK count drops from 194 to 155 because GKs tend to accrue fewer minutes than outfield players). FBref export shape with comma-flattened multi-index headers. GK-only stats (Saves, Save%, GA, CS, etc.) are empty for outfield rows.
 
-## Project Docs Reference
+## Mandatory Pre-Read (per DEVELOPMENT_WORKFLOW.md)
 
-`docs/` is the authoritative documentation set. Key docs in order of importance:
+Before ANY code change, read in order:
+1. **PROJECT_CONSTITUTION.md** â€” highest authority
+2. **AI_DEVELOPER_RULEBOOK.md** â€” operating rules for AI agents
+3. **ARCHITECTURE.md** â€” how the system is put together
+4. **DEVELOPMENT_WORKFLOW.md** â€” mandatory SOP (reading, planning, review, completion)
 
-- **PROJECT_CONSTITUTION.md** — highest authority, rules all agents must follow
-- **ARCHITECTURE.md** — how the system is put together (read before any code change)
-- **DECISIONS.md** — ADR log for every deliberate tradeoff
-- **ML_GUIDELINES.md** — clustering/feature engineering standards
-- **STYLE_GUIDE.md** — Python coding conventions (type hints, naming, forbidden patterns)
-- **STREAMLIT_GUIDELINES.md** — UI conventions (layout, chart template, empty states)
-- **TESTING_GUIDE.md** — test expectations per module
-- **TASK_BACKLOG.md** — tracked tech debt items (ML-01, SEC-01, STYLE-01, etc.)
-- **OPTION_C_PLAN.md** — Option C refactoring to 8 archetypes (✅ implemented in Phase 4C)
+Then check **DECISIONS.md** (ADRs) and **TASK_BACKLOG.md** (tracked items) before assuming something is a bug.
 
-The CONVENTION: `PROJECT_CONSTITUTION.md > everything else in /docs > code > your best guess`. If a doc and code disagree, that's a bug in whichever is stale — fix the doc in the same change as the code.
+## Docs Directory
+
+All docs live flat in `docs/` (16 .md files). The docs/README.md describes an aspirational subdirectory layout that hasn't been applied yet â€” don't rely on those subdirectory paths.
+
+Key docs in order of importance:
+- **PROJECT_CONSTITUTION.md** â€” highest authority, rules all agents must follow
+- **ARCHITECTURE.md** â€” how the system is put together (read before any code change)
+- **DECISIONS.md** â€” ADR log for every deliberate tradeoff
+- **ML_GUIDELINES.md** â€” clustering/feature engineering standards
+- **STYLE_GUIDE.md** â€” Python coding conventions (type hints, naming, forbidden patterns)
+- **STREAMLIT_GUIDELINES.md** â€” UI conventions (layout, chart template, empty states)
+- **DEVELOPMENT_WORKFLOW.md** â€” mandatory SOP (reading, planning, testing, completion)
+- **AI_DEVELOPER_RULEBOOK.md** â€” operating rules for AI agents
+- **CODE_REVIEW_CHECKLIST.md** â€” checklist to run before/after every change
+- **TESTING_GUIDE.md** â€” test expectations per module
+- **TASK_BACKLOG.md** â€” tracked tech debt items (ML-01, SEC-01, STYLE-01, etc.)
+
+The CONVENTION: `PROJECT_CONSTITUTION.md > everything else in /docs > code > your best guess`. If a doc and code disagree, that's a bug in whichever is stale â€” fix the doc in the same change as the code.
 
 ## Changelog (Session Chronicle)
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
 
-### 2026-07-21 — Phase 4C: Option C implemented (8 outfield archetypes)
+
+### 2026-07-24 — ML-04 ported from worktree to main branch
+- **ML-04:** evaluate_clustering() function, silhouette_score/davies_bouldin_score imports, evaluate parameter on group_players, and logging-based __main__ block. Originally implemented inside the Phase 4C worktree by mistake; re-applied to main.
+
+### 2026-07-21 â€” Phase 5: ML-02 resolved â€” position-scoped percentiles
+- **Implemented:** ML-02 â€” `add_position_percentiles` now initialises each percentile column as NaN and only computes values for position groups where the stat is relevant per `POSITION_COMPARE_STATS`. Irrelevant stat-position pairs (e.g. `saves_percentile` for forwards) stay NaN instead of a misleading tied-at-zero 50th-percentile rank.
+- **Changed:** `features.py` â€” `add_position_percentiles` loops over positions and checks `get_compare_stats_for_position` before computing, instead of blindly ranking all stats for all positions.
+- **Tests added:** 4 new tests in `TestAddPositionPercentiles`: `test_irrelevant_stat_is_nan`, `test_relevant_stat_has_rank`, `test_saves_only_for_gk`, `test_unknown_stat_skipped`. 38/38 tests passing.
+- **Impact:** Same-position percentile radars (H2H, Playstyle Explorer) are unaffected. Cross-position comparisons (already warned-about in the UI) now correctly show NaN for irrelevant stat-position pairs. No behavioral change for clustering.
+- **Docs updated:** `ML_GUIDELINES.md Â§6` (marks ML-02 resolved), `TASK_BACKLOG.md` (status â†’ RESOLVED), `TESTING_GUIDE.md` (tracks tests), CLAUDE.md changelog.
+
+### 2026-07-21 â€” Phase 4C: Option C implemented (8 outfield archetypes)
 - **Implemented:** Option C refactoring per `OPTION_C_PLAN.md` and `TASK_BACKLOG.md`.
 - **Changed:** `OUTFIELD_ARCHETYPES` expanded from 5 to 8 entries (Elite Finishers, Advanced Attackers, Wide Creators, Deep Creators, Direct Attackers, Ball-Winning Anchors, Defensive Anchors, Utility / Depth Players).
-- **Changed:** `KMeans(n_clusters=5)` → `KMeans(n_clusters=8)` for outfield players.
-- **Changed:** `_assign_labels_from_archetypes` replaced greedy "no repeats" constraint with non-greedy nearest-neighbour + distance threshold (3.5) → "Mixed Profile" fallback.
+- **Changed:** `KMeans(n_clusters=5)` â†’ `KMeans(n_clusters=8)` for outfield players.
+- **Changed:** `_assign_labels_from_archetypes` replaced greedy "no repeats" constraint with non-greedy nearest-neighbour + distance threshold (3.5) â†’ "Mixed Profile" fallback.
 - **Fixed (ML-01):** `_assign_labels_from_archetypes` now accepts the player-level `scaler_out`/`scaler_gk` from `group_players`, anchoring archetype-matching distances to the real data distribution instead of fitting a scaler on just the centroid points.
-- **Fixed (ML-01 nuance):** The threshold fallback prevented GK clusters from being forced into "Sweeper-Keepers" — both GK centroids are genuinely closer to "Shot-Stoppers" in this season's data. The old greedy code forced the second label.
+- **Fixed (ML-01 nuance):** The threshold fallback prevented GK clusters from being forced into "Sweeper-Keepers" â€” both GK centroids are genuinely closer to "Shot-Stoppers" in this season's data. The old greedy code forced the second label.
 - **Added:** UI info note in `render_playstyle_explorer` about missing dribbling data.
 - **Tests updated:** 2 new tests (`test_labels_use_raw_archetype_names`, `test_shared_labels_under_non_greedy`) replace the old `test_each_cluster_has_unique_label`. Fixture expanded to 12 rows (2 new outfield players) to support K=8. Expected row count in data loader test updated to 11. 32/32 tests passing.
-- **Next items (still unaddressed):** STYLE-01 (unused search_query param), ML-04 (evaluation metrics), DEP-01 (gitignore), CI-01 (CI pipeline), ML-02 (scope percentiles). Option C plan is now complete — remove from "next items".
+- **Next items (still unaddressed):** STYLE-01 (unused search_query param), ML-04 (evaluation metrics), DEP-01 (gitignore), CI-01 (CI pipeline), ML-02 (scope percentiles). Option C plan is now complete â€” remove from "next items".
 
-### 2026-07-20 — Initial review of CLAUDE.md accuracy
-- **Corrected:** `217 multi-position entries` → `620` (217 was only the `MF,FW` subset).
-- **Corrected:** `~194 GK after Min≥270` → `~155 GK` (194 was the pre-filter count; GKs tend to log fewer minutes).
-- **Confirmed:** All architecture, dependency, and design claims are accurate. One minor awareness point: the "152 duplicate names" count is `duplicated().sum()` (rows after first), covering 151 unique names — one player (Nicolás González) appears 3× across 3 clubs.
+### 2026-07-20 â€” Initial review of CLAUDE.md accuracy
+- **Corrected:** `217 multi-position entries` â†’ `620` (217 was only the `MF,FW` subset).
+- **Corrected:** `~194 GK after Minâ‰¥270` â†’ `~155 GK` (194 was the pre-filter count; GKs tend to log fewer minutes).
+- **Confirmed:** All architecture, dependency, and design claims are accurate. One minor awareness point: the "152 duplicate names" count is `duplicated().sum()` (rows after first), covering 151 unique names â€” one player (NicolÃ¡s GonzÃ¡lez) appears 3Ã— across 3 clubs.
 
 ## External Dependencies
 
 Runtime: `streamlit>=1.28.0`, `pandas>=2.0.0`, `scikit-learn>=1.3.0`, `plotly>=5.18.0`. No lockfile. `fetch_possession_stats.py` has its own dep footprint (`requests`, `beautifulsoup4`, `lxml`) intentionally absent from `requirements.txt`.
+

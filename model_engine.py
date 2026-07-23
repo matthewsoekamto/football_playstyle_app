@@ -1,10 +1,15 @@
+﻿import logging
+
 import numpy as np
 import pandas as pd
 import streamlit as st
 from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 from sklearn.preprocessing import StandardScaler
 
 from data_loader import load_and_clean_data
+
+logger = logging.getLogger(__name__)
 
 OUTFIELD_FEATURES = [
     "gls_p90",
@@ -120,6 +125,33 @@ def _assign_labels_from_archetypes(centroids, archetypes, feature_cols, scaler=N
     return labels
 
 
+def evaluate_clustering(
+    scaled_data: np.ndarray, labels: np.ndarray, prefix: str = ""
+) -> dict[str, float]:
+    """Compute silhouette score and Davies-Bouldin index for a clustered dataset.
+
+    Parameters
+    ----------
+    scaled_data : np.ndarray
+        Standardized feature matrix, shape (n_samples, n_features).
+    labels : np.ndarray
+        Cluster label for each sample, shape (n_samples,).
+    prefix : str
+        Optional label for log output (e.g. "Outfield" or "GK").
+
+    Returns
+    -------
+    dict[str, float]
+        Dictionary with keys ``silhouette_score`` and ``davies_bouldin_score``.
+    """
+    sil = silhouette_score(scaled_data, labels)
+    db = davies_bouldin_score(scaled_data, labels)
+    label = f"[{prefix}] " if prefix else ""
+    logger.info("%sSilhouette:     %.4f", label, sil)
+    logger.info("%sDavies-Bouldin: %.4f", label, db)
+    return {"silhouette_score": sil, "davies_bouldin_score": db}
+
+
 def get_cluster_profiles(df, feature_cols, playstyle_col="playstyle_cluster"):
     if playstyle_col not in df.columns:
         return pd.DataFrame()
@@ -149,7 +181,7 @@ def get_cluster_profiles(df, feature_cols, playstyle_col="playstyle_cluster"):
     return pd.DataFrame(profiles)
 
 
-def group_players(df):
+def group_players(df, evaluate: bool = False):
     if "primary_position" not in df.columns:
         df["primary_position"] = df["pos"].str.split(",").str[0]
 
@@ -174,6 +206,9 @@ def group_players(df):
         )
         df_outfield["playstyle_cluster"] = df_outfield["cluster_id"].map(cluster_names)
 
+        if evaluate and outfield_features and outfield_data.shape[0] >= 3:
+            evaluate_clustering(scaled_out, df_outfield["cluster_id"].values, prefix="Outfield")
+
     gk_features = _available_features(df_gk, GK_FEATURES)
     if gk_features and not df_gk.empty:
         gk_data = df_gk[gk_features].fillna(0)
@@ -192,6 +227,9 @@ def group_players(df):
         )
         df_gk["playstyle_cluster"] = df_gk["cluster_id"].map(cluster_names)
 
+        if evaluate and gk_features and gk_data.shape[0] >= 3:
+            evaluate_clustering(scaled_gk, df_gk["cluster_id"].values, prefix="GK")
+
     return pd.concat([df_outfield, df_gk], ignore_index=True)
 
 
@@ -201,15 +239,15 @@ def get_clustered_data(filepath):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     try:
-        print("Loading data...")
+        logger.info("Loading data...")
         my_data = load_and_clean_data("data/players_data_light-2025_2026.csv")
 
-        print("Running dual-engine clustering...")
-        clustered_data = group_players(my_data)
+        logger.info("Running dual-engine clustering...")
+        clustered_data = group_players(my_data, evaluate=True)
 
-        print("SUCCESS: Players and goalkeepers have been grouped and named!")
-        print("\nComplete playstyle distribution:")
-        print(clustered_data["playstyle_cluster"].value_counts())
+        logger.info("SUCCESS: Players and goalkeepers have been grouped and named!")
+        logger.info("\nComplete playstyle distribution:\n%s", clustered_data["playstyle_cluster"].value_counts())
     except Exception as e:
-        print(f"ERROR: {e}")
+        logger.error("ERROR: %s", e)
