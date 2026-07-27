@@ -6,16 +6,13 @@ across two independent runs on the same input, which enforces the
 `random_state=42` reproducibility requirement.
 """
 
-import json
-import hashlib
 import numpy as np
 import pandas as pd
-import pytest
 from data_loader import load_and_clean_data
 from model_engine import (
     group_players, get_cluster_profiles,
     _save_model_artifacts, _load_model_artifacts,
-    _compute_dataset_hash, _apply_loaded_model,
+    _apply_loaded_model,
 )
 
 
@@ -274,13 +271,11 @@ class TestModelPersistence:
     def test_save_and_load_roundtrip(self, fixture_csv_path, tmp_path):
         """Persisted model loads and produces identical labels to fresh fit."""
         from model_engine import (
-            _save_model_artifacts, _load_model_artifacts,
-            _apply_loaded_model, group_players, OUTFIELD_ARCHETYPES, GK_ARCHETYPES,
+            group_players, OUTFIELD_ARCHETYPES, GK_ARCHETYPES,
             OUTFIELD_FEATURES, GK_FEATURES,
         )
         from sklearn.preprocessing import StandardScaler
         from sklearn.cluster import KMeans
-        import joblib
 
         # First fit and save
         cleaned = load_and_clean_data(fixture_csv_path)
@@ -305,10 +300,7 @@ class TestModelPersistence:
         kmeans_gk = KMeans(n_clusters=2, random_state=42, n_init=10)
         kmeans_gk.fit(scaled_gk)
 
-        outfield_centroids = outfield.groupby("cluster_id")[outfield_features].mean()
         outfield_names = clustered[clustered["primary_position"] != "GK"].groupby("cluster_id")["playstyle_cluster"].first().to_dict()
-
-        gk_centroids = gk.groupby("cluster_id")[gk_features].mean()
         gk_names = clustered[clustered["primary_position"] == "GK"].groupby("cluster_id")["playstyle_cluster"].first().to_dict()
 
         # Use a temp directory for this test
@@ -342,7 +334,6 @@ class TestModelPersistence:
     def test_load_returns_none_on_hash_mismatch(self, fixture_csv_path, tmp_path):
         """Changed dataset invalidates persisted artifacts."""
         import model_engine
-        from model_engine import _save_model_artifacts, _load_model_artifacts
         from sklearn.preprocessing import StandardScaler
         from sklearn.cluster import KMeans
 
