@@ -1,5 +1,6 @@
 """Tests for features.py — filtering, percentiles, display formatting."""
 import pandas as pd
+
 from features import (
     filter_dataframe,
     format_display_table,

@@ -1,12 +1,13 @@
 """Smoke tests for charts.py — each build_* function returns a Figure."""
 import pandas as pd
-import pytest
 import plotly.graph_objects as go
+import pytest
+
 from charts import (
-    build_scatter_chart,
     build_h2h_radar,
     build_playstyle_distribution_chart,
     build_playstyle_radar_chart,
+    build_scatter_chart,
 )
 
 

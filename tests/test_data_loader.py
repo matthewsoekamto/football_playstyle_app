@@ -1,6 +1,7 @@
 """Tests for data_loader.py — CSV ingestion, cleaning, and per-90 derivation."""
 import pandas as pd
-from data_loader import load_and_clean_data, _add_per90_rates
+
+from data_loader import _add_per90_rates, load_and_clean_data
 
 
 class TestLoadAndCleanData:

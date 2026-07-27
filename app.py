@@ -16,8 +16,8 @@ from features import (
     add_position_percentiles,
     filter_dataframe,
     format_display_table,
-    get_compare_stats_for_position,
     get_all_compare_stats,
+    get_compare_stats_for_position,
 )
 from model_engine import get_cluster_profiles, get_clustered_data
 

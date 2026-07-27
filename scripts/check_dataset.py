@@ -13,6 +13,7 @@ print()
 
 # 2) check what version of the dataset we have
 import pandas as pd  # noqa: E402
+
 try:
     df = pd.read_csv("data/players_data_light-2025_2026.csv", nrows=0)
     print("=== Current light dataset columns ===")

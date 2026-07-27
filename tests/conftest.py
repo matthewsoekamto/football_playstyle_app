@@ -10,11 +10,11 @@ Provides a small synthetic CSV fixture covering:
 - Player with 90s=0 (division-by-zero guard)
 """
 
-import tempfile
 import os
+import tempfile
+
 import pandas as pd
 import pytest
-
 
 FIXTURE_COLUMNS = [
     "Rk", "Player", "Pos", "Squad", "Comp",

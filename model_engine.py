@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score, davies_bouldin_score
+from sklearn.metrics import davies_bouldin_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
 
 from data_loader import load_and_clean_data

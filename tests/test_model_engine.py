@@ -8,11 +8,14 @@ across two independent runs on the same input, which enforces the
 
 import numpy as np
 import pandas as pd
+
 from data_loader import load_and_clean_data
 from model_engine import (
-    group_players, get_cluster_profiles,
-    _save_model_artifacts, _load_model_artifacts,
     _apply_loaded_model,
+    _load_model_artifacts,
+    _save_model_artifacts,
+    get_cluster_profiles,
+    group_players,
 )
 
 
@@ -113,7 +116,7 @@ class TestClusterOutput:
         same archetype name to multiple clusters — that is correct behaviour
         (honest nearest-neighbour, not forced-unique).
         """
-        from model_engine import OUTFIELD_ARCHETYPES, GK_ARCHETYPES
+        from model_engine import GK_ARCHETYPES, OUTFIELD_ARCHETYPES
         result = _run_clustering(fixture_csv_path)
 
         outfield_archetypes = set(OUTFIELD_ARCHETYPES.keys()) | {"Mixed Profile"}
@@ -161,9 +164,10 @@ class TestClusterOutput:
         """_assign_labels_from_archetypes correctly assigns the same
         archetype name to two different clusters when both are closest
         to that archetype — proving the non-greedy constraint is active."""
-        from model_engine import _assign_labels_from_archetypes
-        from sklearn.preprocessing import StandardScaler
         import numpy as np
+        from sklearn.preprocessing import StandardScaler
+
+        from model_engine import _assign_labels_from_archetypes
 
         # Two centroids deliberately close to the first archetype
         centroids = pd.DataFrame(
@@ -270,12 +274,16 @@ class TestModelPersistence:
 
     def test_save_and_load_roundtrip(self, fixture_csv_path, tmp_path):
         """Persisted model loads and produces identical labels to fresh fit."""
-        from model_engine import (
-            group_players, OUTFIELD_ARCHETYPES, GK_ARCHETYPES,
-            OUTFIELD_FEATURES, GK_FEATURES,
-        )
-        from sklearn.preprocessing import StandardScaler
         from sklearn.cluster import KMeans
+        from sklearn.preprocessing import StandardScaler
+
+        from model_engine import (
+            GK_ARCHETYPES,
+            GK_FEATURES,
+            OUTFIELD_ARCHETYPES,
+            OUTFIELD_FEATURES,
+            group_players,
+        )
 
         # First fit and save
         cleaned = load_and_clean_data(fixture_csv_path)
@@ -333,9 +341,10 @@ class TestModelPersistence:
 
     def test_load_returns_none_on_hash_mismatch(self, fixture_csv_path, tmp_path):
         """Changed dataset invalidates persisted artifacts."""
-        import model_engine
-        from sklearn.preprocessing import StandardScaler
         from sklearn.cluster import KMeans
+        from sklearn.preprocessing import StandardScaler
+
+        import model_engine
 
         original_models_dir = model_engine.MODELS_DIR
         model_engine.MODELS_DIR = tmp_path / "models"
