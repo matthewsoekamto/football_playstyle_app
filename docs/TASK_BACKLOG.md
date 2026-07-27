@@ -26,12 +26,9 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 - **Status:** RESOLVED by Phase 4C (Option C). `_assign_labels_from_archetypes` now accepts the player-level `scaler_out`/`scaler_gk` from `group_players` and uses those to transform both centroids and archetype vectors. The fallback (centroid-only scaler) remains as a code path for direct unit-test calls but is no longer the production path. See `DECISIONS.md` ADR-009, `ML_GUIDELINES.md Â§3`.
 - **Note:** The scaler-fix was implemented as part of the larger Option C refactor. No separate scaler-only change was needed.
 
-### ML-02: Scope percentile computation to position-relevant stats
-- **Priority:** High | **Difficulty:** Low-Medium | **Impact:** Medium | **Effort:** ~2 hours
-- **Dependencies:** None
-- **Files affected:** `features.py` (`add_position_percentiles`, `get_all_compare_stats`)
-- **Acceptance criteria:** `add_position_percentiles` does not compute (or explicitly nulls out) percentile columns for stats that are structurally meaningless for a given position (e.g. `saves_percentile` for forwards), using `POSITION_COMPARE_STATS` as the source of relevance.
-- **Expected outcome:** No misleading always-tied percentile columns sitting in the DataFrame. See `DECISIONS.md` ADR-007, `ML_GUIDELINES.md Â§6`.
+### ML-02: Scope percentile computation to position-relevant stats — ✅ RESOLVED
+- **Status:** RESOLVED 2026-07-21 (Phase 5). `add_position_percentiles` now initialises each percentile column as NaN and only computes values for position groups where the stat is relevant per `POSITION_COMPARE_STATS`.
+- **Files affected:** `features.py` (`add_position_percentiles`), `tests/test_model_engine.py` (4 new tests for NaN-on-irrelevant-stats).
 
 ### STYLE-01: Remove or wire up the unused `search_query` parameter
 - **Priority:** High | **Difficulty:** Low | **Impact:** Low-Medium (code clarity/DRY) | **Effort:** ~30 minutes
@@ -40,12 +37,8 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 - **Acceptance criteria:** Either `filter_dataframe`'s `search_query` parameter is removed (since `app.apply_search_filter` already handles search separately) or the two search paths are consolidated into one, with a test locking in the chosen behavior.
 - **Expected outcome:** No dead/misleading parameter in a public function signature. See `STYLE_GUIDE.md Â§12`.
 
-### DEP-01: Add `.gitignore` and pin dependency upper bounds / lockfile
-- **Priority:** High | **Difficulty:** Low | **Impact:** Medium | **Effort:** ~1-2 hours
-- **Dependencies:** None
-- **Files affected:** New `.gitignore`, `requirements.txt`, new lockfile
-- **Acceptance criteria:** A `.gitignore` exists before any secret or local artifact could accidentally be committed; `requirements.txt` dependencies have upper bounds or a generated lockfile with exact, reproducible versions for deployment.
-- **Expected outcome:** Reduced supply-chain/reproducibility risk. See `SECURITY_GUIDE.md Â§7`.
+### DEP-01: Add `.gitignore` and pin dependency upper bounds / lockfile — ✅ RESOLVED
+- **Status:** RESOLVED. `.gitignore` existed (verified). Added upper bounds to `requirements.txt` (e.g., `streamlit>=1.28.0,<2.0.0`). Generated `requirements.lock` via `pip freeze`. Added `models/` to `.gitignore`.
 
 ## MEDIUM
 
@@ -56,12 +49,9 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 - **Acceptance criteria:** Possession/passing stats join the outfield feature set via the same per-90 normalization pipeline; `OUTFIELD_ARCHETYPES` centroid targets are re-validated (adding dimensions changes clustering geometry â€” this is not a drop-in change); resulting clusters are manually sanity-checked.
 - **Expected outcome:** Materially better playstyle differentiation (e.g. distinguishing possession-retaining midfielders from pressing ones, which the current 6-feature set cannot do). See `DECISIONS.md` ADR-005, `ML_GUIDELINES.md Â§14`, `PROJECT_SPEC.md Â§5`.
 
-### ML-03: Model persistence
-- **Priority:** Medium | **Difficulty:** Medium | **Impact:** Medium | **Effort:** ~1-2 days
-- **Dependencies:** TEST-01
-- **Files affected:** `model_engine.py`, new `models/` directory or artifact store
-- **Acceptance criteria:** Fitted `StandardScaler`+`KMeans` objects (and the archetype-label mapping) can be persisted via `joblib` with metadata (dataset filename, row count, fit timestamp, library versions) and optionally loaded instead of refit on cold start, using `@st.cache_resource` rather than `@st.cache_data`.
-- **Expected outcome:** Auditable, versioned model artifacts instead of implicit "the model is whatever the code + CSV currently produce." See `ML_GUIDELINES.md Â§11`, `PERFORMANCE_GUIDE.md Â§6`.
+### ML-03: Model persistence — ✅ RESOLVED
+- **Status:** RESOLVED. Implemented `joblib` persistence for `StandardScaler` + `KMeans` objects with metadata JSON (dataset hash, row count, fit timestamp, library versions). Added `_get_or_fit_model` with `@st.cache_resource`, `_save_model_artifacts`, `_load_model_artifacts`, `_compute_dataset_hash`, `_apply_loaded_model`. CLI `--persist` flag on `model_engine.py`. Added tests for save/load roundtrip and hash-mismatch invalidation.
+- **Files affected:** `model_engine.py`, `requirements.txt` (added `joblib>=1.3.0`), `tests/test_model_engine.py` (new tests), `.gitignore` (added `models/`)
 
 ### ML-04: Add clustering evaluation metrics — ✅ RESOLVED
 - **Priority:** Medium | **Difficulty:** Low | **Impact:** Medium (diagnostic value, portfolio value) | **Effort:** ~2-3 hours
@@ -84,12 +74,9 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 - **Acceptance criteria:** Every public function in `data_loader.py`, `model_engine.py`, `features.py` has at least one test; every `build_*` in `charts.py` has a smoke test â€” per `TESTING_GUIDE.md Â§10`.
 - **Expected outcome:** Meets the Definition of Production Ready testing bar (`PROJECT_CONSTITUTION.md Â§16`).
 
-### CI-01: Basic CI (lint + test on push)
-- **Priority:** Medium | **Difficulty:** Low | **Impact:** Medium | **Effort:** ~2-3 hours
-- **Dependencies:** TEST-01
-- **Files affected:** New `.github/workflows/ci.yml` (or equivalent)
-- **Acceptance criteria:** Every push/PR runs `pytest` and a linter (e.g. `ruff`); failures block merge.
-- **Expected outcome:** Meets the Definition of Production Ready CI bar (`PROJECT_CONSTITUTION.md Â§16`).
+### CI-01: Basic CI (lint + test on push) — ✅ RESOLVED
+- **Status:** RESOLVED. Created `.github/workflows/ci.yml` running `ruff check .` and `pytest tests/ -v` on every push/PR to main.
+- **Files affected:** `.github/workflows/ci.yml`, `requirements-dev.txt` (added `ruff>=0.4.0`)
 
 ## LOW
 

@@ -32,7 +32,8 @@ This is **unsupervised, descriptive** clustering â€” there is no train/test
 
 ## 6. Missing Values
 
-- Current policy: `fillna(0)` before scaling/clustering (`model_engine.group_players`) and before percentile ranking (`features.add_position_percentiles`). This is a defensible default for count/rate stats (see `DECISIONS.md` ADR-007) but has a known side effect: percentile columns get computed for position-irrelevant stats (e.g. `saves_percentile` for forwards, all tied at 0). **Do not "fix" this by imputing means** â€” a mean-imputed goalkeeper stat for a forward is more misleading than a zero, not less. The correct fix (tracked in `TASK_BACKLOG.md` ML-02, not implemented here) is to scope `add_position_percentiles` to only compute percentile columns for stats relevant to each position group, using `POSITION_COMPARE_STATS` as the source of relevance.
+- Current policy: `fillna(0)` before scaling/clustering (`model_engine.group_players`) and before percentile ranking (`features.add_position_percentiles`). This is a defensible default for count/rate stats (see `DECISIONS.md` ADR-007).
+- **ML-02 (RESOLVED):** `add_position_percentiles` now initialises each percentile column as NaN and only computes values for position groups where the stat is relevant per `POSITION_COMPARE_STATS`. Irrelevant stat-position pairs (e.g. `saves_percentile` for forwards) stay NaN instead of a misleading tied-at-zero 50th-percentile rank. See `DECISIONS.md` ADR-007 and `features.py::add_position_percentiles`.
 
 ## 7. Feature Weighting
 
@@ -59,10 +60,50 @@ This is **unsupervised, descriptive** clustering â€” there is no train/test
 
 ## 11. Model Persistence
 
-**Currently: no persistence at all.** `group_players()` is recomputed from scratch on every cold cache (see `ARCHITECTURE.md Â§8`). This is acceptable at current data scale (2,183 rows clusters in well under a second) but is flagged as a gap for a "production-quality" bar:
+**Implemented (ML-03 RESOLVED).** Fitted `StandardScaler` + `KMeans` objects are now persisted via `joblib` alongside a metadata JSON file containing dataset fingerprint (SHA256 hash, row count), fit timestamp, and library versions. This enables:
 
-- Recommended direction: persist the fitted `StandardScaler` + `KMeans` objects (e.g. via `joblib`) alongside a small metadata file (dataset filename, row count, fit timestamp, `scikit-learn` version) so that (a) the deployed app can optionally load a pinned model instead of refitting on every cold start, and (b) there's an auditable record of "which model produced these labels." Track as `TASK_BACKLOG.md` ML-03.
-- Until persistence exists, **the model IS the code + the CSV** â€” any change to `model_engine.py`'s feature lists, archetype dictionaries, or `data_loader.py`'s cleaning logic silently changes every player's playstyle label on next cold start. This is a real operational risk worth knowing, not necessarily one that needs fixing immediately.
+- **Fast cold starts**: `@st.cache_resource` loads persisted artifacts instead of refitting when the dataset hasn't changed
+- **Auditability**: Metadata records exactly which model produced the current labels
+- **Automatic invalidation**: Changing the CSV file (detected via SHA256 hash mismatch) triggers a refit and new artifact generation
+
+**Key functions in `model_engine.py`:**
+- `_get_or_fit_model(filepath)` — `@st.cache_resource` entry point; tries load -> falls back to fit+save
+- `_save_model_artifacts(...)` — persists scalers, KMeans models, label mappings, and metadata
+- `_load_model_artifacts(filepath)` — loads artifacts and validates dataset hash
+- `_compute_dataset_hash(filepath)` — SHA256 of CSV for change detection
+- `_apply_loaded_model(...)` — applies loaded scalers + KMeans to fresh cleaned data
+
+**CLI:** `python model_engine.py --persist` explicitly fits and saves artifacts with evaluation metrics logged.
+
+**Artifacts layout (`models/` directory, gitignored):**
+```
+models/
+├── outfield_scaler.joblib
+├── outfield_kmeans.joblib
+├── gk_scaler.joblib
+├── gk_kmeans.joblib
+├── cluster_labels.json      # {outfield: {0: "Elite Finishers", ...}, gk: {0: "Shot-Stoppers", ...}}
+└── metadata.json            # dataset_hash, row_count, fit_timestamp, sklearn_version, params
+```
+
+**Metadata schema (`metadata.json`):**
+```json
+{
+  "dataset_file": "players_data_light-2025_2026.csv",
+  "dataset_hash": "sha256:...",
+  "row_count": 2183,
+  "fit_timestamp": "2026-07-26T...",
+  "sklearn_version": "1.5.0",
+  "numpy_version": "1.26.0",
+  "joblib_version": "1.3.0",
+  "kmeans_params": {"n_clusters": 8, "random_state": 42, "n_init": 10},
+  "gk_kmeans_params": {"n_clusters": 2, "random_state": 42, "n_init": 10}
+}
+```
+
+**Determinism guarantee:** Loaded model produces byte-identical `playstyle_cluster` labels to a fresh fit on the same data (tested in `test_model_engine.py::TestModelPersistence::test_save_and_load_roundtrip`).
+
+Until persistence exists, **the model IS the code + the CSV** — any change to `model_engine.py`'s feature lists, archetype dictionaries, or `data_loader.py`'s cleaning logic silently changes every player's playstyle label on next cold start. This is a real operational risk worth knowing, not necessarily one that needs fixing immediately.
 
 ## 12. Pipeline Design
 

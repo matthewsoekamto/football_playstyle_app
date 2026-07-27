@@ -11,13 +11,21 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This document is the single
 .
 ├── app.py                          # Streamlit entrypoint & UI orchestration
 ├── data_loader.py                  # CSV ingestion, cleaning, per-90 derivation
-├── model_engine.py                 # Feature groups, archetypes, KMeans clustering, labeling
+├── model_engine.py                 # Feature groups, archetypes, KMeans clustering, labeling, persistence
 ├── features.py                     # Filtering, percentiles, display formatting, stat catalogs
 ├── charts.py                       # Plotly figure builders (pure functions, no Streamlit calls)
 ├── fetch_possession_stats.py       # Standalone/manual FBref scraper — NOT imported by the app
 ├── data/                           # Dataset directory
 │   └── players_data_light-2025_2026.csv  # Bundled dataset (2,839 rows × 53 raw columns)
-├── requirements.txt                # streamlit, pandas, scikit-learn, plotly
+├── models/                         # Persisted ML artifacts (gitignored, created at runtime)
+│   ├── outfield_scaler.joblib
+│   ├── outfield_kmeans.joblib
+│   ├── gk_scaler.joblib
+│   ├── gk_kmeans.joblib
+│   ├── cluster_labels.json
+│   └── metadata.json
+├── requirements.txt                # streamlit, pandas, scikit-learn, plotly, joblib
+├── requirements-dev.txt            # pytest, ruff
 └── README.md                       # Human-facing quickstart
 ```
 
@@ -151,6 +159,8 @@ Three layers of `@st.cache_data`, each keyed implicitly by their arguments:
 3. `app.load_app_data(filepath)` (calls #2 internally, then adds percentiles + labels)
 
 Because all three are keyed only on a constant string filepath, cache invalidation in practice only happens on a code change (Streamlit hashes the function body) or a process restart — not on data change, since the CSV itself isn't hashed as an input. **Implication:** replacing the CSV file on disk without restarting the app will *not* invalidate the cache. This is worth knowing operationally; see `PERFORMANCE_GUIDE.md`.
+
+**New (ML-03):** `model_engine._get_or_fit_model(filepath)` uses `@st.cache_resource` (not `@st.cache_data`) for the fitted `StandardScaler` + `KMeans` objects, since scikit-learn models are not JSON-serializable and `cache_resource` is designed for mutable objects with identity. The persistence layer (`models/` directory with `joblib` artifacts) provides an additional disk cache that survives process restarts — see `ML_GUIDELINES.md §11` and `PERFORMANCE_GUIDE.md §6`.
 
 ## 9. Processing Pipeline Summary (Textual)
 

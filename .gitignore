@@ -26,3 +26,6 @@ env/
 # OS
 Thumbs.db
 .DS_Store
+
+# Model artifacts (generated at runtime)
+models/

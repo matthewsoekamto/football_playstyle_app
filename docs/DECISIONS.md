@@ -38,7 +38,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Each record below is recons
 
 **Tradeoffs / known issue:** The matching `StandardScaler` in `_assign_labels_from_archetypes` is fit on only the cluster centroids themselves (**n=5 for outfield, n=2 for goalkeepers**) rather than on the full player-level feature distribution. A `StandardScaler` fit on 2–5 points is a statistically thin basis for a mean/variance estimate, and it means the archetype-matching scale is *relative to this run's centroids*, not to the underlying data. In most runs this is harmless because centroids are reasonably spread out, but it is a fragility worth fixing — see `TASK_BACKLOG.md` (ML-01) and `ML_GUIDELINES.md §Archetype Matching`.
 
-**Also note:** matching is **greedy nearest-first with de-duplication** (`used_names`), not a globally optimal assignment. For 5 clusters vs. 5 archetypes this can, in rare cases, produce a worse total assignment than an optimal (Hungarian/`scipy.optimize.linear_sum_assignment`) solution would. Flagged, not yet fixed.
+**Also note:** matching was **greedy nearest-first with de-duplication** (`used_names`), not a globally optimal assignment. For 5 clusters vs. 5 archetypes this could, in rare cases, produce a worse total assignment than an optimal (Hungarian/`scipy.optimize.linear_sum_assignment`) solution would. **Superseded by ADR-009** (Option C — non-greedy nearest-neighbour with shared labels allowed, no deduplication).
 
 ---
 

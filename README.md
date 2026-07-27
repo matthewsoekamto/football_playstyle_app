@@ -4,7 +4,7 @@ A Streamlit dashboard that clusters football players into human-readable playsty
 
 ## Features
 
-- **Playstyle clustering** for outfield players (5 archetypes) and goalkeepers (2 archetypes)
+- **Playstyle clustering** for outfield players (8 archetypes) and goalkeepers (2 archetypes)
 - **Sidebar filters** by league, position, squad, and playstyle
 - **Playstyle Explorer** with distribution chart, centroid radar, and representative players
 - **Elite outlier scatter plot** colored by playstyle
@@ -37,26 +37,35 @@ The app opens at `http://localhost:8501`.
 |------|---------|
 | `app.py` | Streamlit UI |
 | `data_loader.py` | CSV loading, cleaning, per-90 feature derivation |
-| `model_engine.py` | K-Means clustering and playstyle labeling |
+| `model_engine.py` | K-Means clustering, playstyle labeling, **model persistence** |
 | `features.py` | Filters, percentiles, position stat sets |
 | `charts.py` | Plotly chart builders |
 
-## Data
+## Dataset
 
-The bundled CSV contains player season stats from five leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1). Players with fewer than 270 minutes played are excluded.
+The application uses a processed dataset containing player season statistics from Europe's Big Five leagues:
 
-## Deploy
+- Premier League
+- La Liga
+- Serie A
+- Bundesliga
+- Ligue 1
 
-To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
+Only players with at least 270 minutes played are included to improve clustering stability.
 
-1. Push this repo to GitHub
-2. Connect the repo in Streamlit Cloud
-3. Set the main file to `app.py`
-4. Ensure `requirements.txt` is at the repo root
+## Clustering Pipeline
+
+1. Load and clean player statistics
+2. Compute per-90 features
+3. Separate outfield players and goalkeepers
+4. Standardize features
+5. Cluster players using K-Means
+6. Assign human-readable playstyle labels
+7. Visualize results in Streamlit
 
 ## Development
 
-Run clustering standalone:
+Run clustering standalone (with evaluation metrics):
 
 ```bash
 python model_engine.py
@@ -67,3 +76,53 @@ Run data loading standalone:
 ```bash
 python data_loader.py
 ```
+
+Run tests:
+
+```bash
+python -m pytest tests/ -v
+```
+
+## CI
+
+[![CI](https://github.com/matthew/football-playstyle-app/actions/workflows/ci.yml/badge.svg)](https://github.com/matthew/football-playstyle-app/actions/workflows/ci.yml)
+
+Every push runs linting (ruff) and the full test suite.
+
+## Model Persistence
+
+The app persists fitted `StandardScaler` + `KMeans` models to `models/` (gitignored) with metadata (dataset SHA256, row count, fit timestamp, library versions). On cold start, it loads persisted artifacts instead of refitting when the dataset hasn't changed — enabling fast startup and auditability.
+
+To explicitly fit and persist:
+
+```bash
+python model_engine.py --persist
+```
+## Tech Stack
+
+- Python
+- Streamlit
+- Pandas
+- NumPy
+- Scikit-learn
+- Plotly
+- Pytest
+- Ruff
+
+## Deploy
+
+To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
+
+1. Push this repo to GitHub
+2. Connect the repo in Streamlit Cloud
+3. Set the main file to `app.py`
+4. Ensure `requirements.txt` is at the repo root
+
+## Current Limitations
+
+The current clustering model is trained using six outfield performance features.
+Because progression and dribbling statistics (e.g. carries, progressive carries,
+take-ons) are unavailable in the source dataset, some attacking playstyles
+cannot yet be distinguished reliably.
+
+These richer event-based features are planned for a future iteration.

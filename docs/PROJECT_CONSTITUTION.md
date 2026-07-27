@@ -37,7 +37,7 @@ Become the clearest, most trustworthy open-source tool for understanding **how a
 
 - **Correctness over cleverness.** The archetype-labeling logic in `model_engine._assign_labels_from_archetypes` is a good example of "clever" (distance-matching cluster centroids to hand-authored archetype vectors) that must be held to a "correct" standard — see `ML_GUIDELINES.md` for the specific concern about fitting a `StandardScaler` on only 2–5 centroid points.
 - **Small, explainable modules.** The existing five-module split (`data_loader` → `model_engine` → `features` → `charts` → `app`) is the correct shape. New functionality should extend this shape, not collapse it into `app.py`.
-- **No silent magic numbers.** `min >= 270`, `n_clusters=5`, `n_clusters=2`, and every value inside `OUTFIELD_ARCHETYPES` / `GK_ARCHETYPES` are currently magic numbers embedded in code. The Constitution does not require removing them immediately, but it forbids adding *new* undocumented magic numbers going forward (see `STYLE_GUIDE.md §Constants`).
+- **No silent magic numbers.** `min >= 270`, `n_clusters=8` (outfield) / `n_clusters=2` (GK), and every value inside `OUTFIELD_ARCHETYPES` / `GK_ARCHETYPES` are currently magic numbers embedded in code. The Constitution does not require removing them immediately, but it forbids adding *new* undocumented magic numbers going forward (see `STYLE_GUIDE.md §Constants`).
 - **Fail loud in development, fail soft in production UI.** A Streamlit user should never see a raw Python traceback; a developer running `python model_engine.py` should see the real exception.
 
 ## 6. AI Development Philosophy

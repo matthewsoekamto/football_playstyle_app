@@ -6,11 +6,17 @@ across two independent runs on the same input, which enforces the
 `random_state=42` reproducibility requirement.
 """
 
+import json
+import hashlib
 import numpy as np
 import pandas as pd
 import pytest
 from data_loader import load_and_clean_data
-from model_engine import group_players, get_cluster_profiles
+from model_engine import (
+    group_players, get_cluster_profiles,
+    _save_model_artifacts, _load_model_artifacts,
+    _compute_dataset_hash, _apply_loaded_model,
+)
 
 
 def _run_clustering(csv_path):
@@ -260,3 +266,121 @@ class TestClusterProfiles:
         result = get_cluster_profiles(df, ["gls_p90"], playstyle_col="nonexistent")
         assert isinstance(result, pd.DataFrame)
         assert result.empty
+
+
+class TestModelPersistence:
+    """Tests for model persistence (joblib) and metadata validation."""
+
+    def test_save_and_load_roundtrip(self, fixture_csv_path, tmp_path):
+        """Persisted model loads and produces identical labels to fresh fit."""
+        from model_engine import (
+            _save_model_artifacts, _load_model_artifacts,
+            _apply_loaded_model, group_players, OUTFIELD_ARCHETYPES, GK_ARCHETYPES,
+            OUTFIELD_FEATURES, GK_FEATURES,
+        )
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.cluster import KMeans
+        import joblib
+
+        # First fit and save
+        cleaned = load_and_clean_data(fixture_csv_path)
+        clustered = group_players(cleaned)
+
+        outfield = clustered[clustered["primary_position"] != "GK"]
+        gk = clustered[clustered["primary_position"] == "GK"]
+
+        outfield_features = [f for f in OUTFIELD_FEATURES if f in outfield.columns]
+        gk_features = [f for f in GK_FEATURES if f in gk.columns]
+
+        outfield_data = outfield[outfield_features].fillna(0)
+        gk_data = gk[gk_features].fillna(0)
+
+        scaler_out = StandardScaler()
+        scaled_out = scaler_out.fit_transform(outfield_data)
+        kmeans_out = KMeans(n_clusters=8, random_state=42, n_init=10)
+        kmeans_out.fit(scaled_out)
+
+        scaler_gk = StandardScaler()
+        scaled_gk = scaler_gk.fit_transform(gk_data)
+        kmeans_gk = KMeans(n_clusters=2, random_state=42, n_init=10)
+        kmeans_gk.fit(scaled_gk)
+
+        outfield_centroids = outfield.groupby("cluster_id")[outfield_features].mean()
+        outfield_names = clustered[clustered["primary_position"] != "GK"].groupby("cluster_id")["playstyle_cluster"].first().to_dict()
+
+        gk_centroids = gk.groupby("cluster_id")[gk_features].mean()
+        gk_names = clustered[clustered["primary_position"] == "GK"].groupby("cluster_id")["playstyle_cluster"].first().to_dict()
+
+        # Use a temp directory for this test
+        import model_engine
+        original_models_dir = model_engine.MODELS_DIR
+        model_engine.MODELS_DIR = tmp_path / "models"
+        model_engine.MODELS_DIR.mkdir()
+
+        try:
+            _save_model_artifacts(
+                scaler_out, kmeans_out, scaler_gk, kmeans_gk,
+                outfield_names, gk_names,
+                fixture_csv_path, clustered.shape
+            )
+
+            # Load and apply
+            artifacts = _load_model_artifacts(fixture_csv_path)
+            assert artifacts is not None, "Should load saved artifacts"
+
+            applied = _apply_loaded_model(
+                cleaned, artifacts, outfield_features, gk_features,
+                OUTFIELD_ARCHETYPES, GK_ARCHETYPES
+            )
+
+            # Labels should match
+            assert (applied["playstyle_cluster"] == clustered["playstyle_cluster"]).all(), \
+                "Loaded model produces different labels than fresh fit"
+        finally:
+            model_engine.MODELS_DIR = original_models_dir
+
+    def test_load_returns_none_on_hash_mismatch(self, fixture_csv_path, tmp_path):
+        """Changed dataset invalidates persisted artifacts."""
+        import model_engine
+        from model_engine import _save_model_artifacts, _load_model_artifacts
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.cluster import KMeans
+
+        original_models_dir = model_engine.MODELS_DIR
+        model_engine.MODELS_DIR = tmp_path / "models"
+        model_engine.MODELS_DIR.mkdir()
+
+        try:
+            cleaned = load_and_clean_data(fixture_csv_path)
+            clustered = group_players(cleaned)
+
+            outfield = clustered[clustered["primary_position"] != "GK"]
+            gk = clustered[clustered["primary_position"] == "GK"]
+            outfield_features = [f for f in model_engine.OUTFIELD_FEATURES if f in outfield.columns]
+            gk_features = [f for f in model_engine.GK_FEATURES if f in gk.columns]
+
+            outfield_data = outfield[outfield_features].fillna(0)
+            gk_data = gk[gk_features].fillna(0)
+
+            scaler_out = StandardScaler()
+            kmeans_out = KMeans(n_clusters=8, random_state=42, n_init=10).fit(scaler_out.fit_transform(outfield_data))
+            scaler_gk = StandardScaler()
+            kmeans_gk = KMeans(n_clusters=2, random_state=42, n_init=10).fit(scaler_gk.fit_transform(gk_data))
+
+            outfield_names = clustered[clustered["primary_position"] != "GK"].groupby("cluster_id")["playstyle_cluster"].first().to_dict()
+            gk_names = clustered[clustered["primary_position"] == "GK"].groupby("cluster_id")["playstyle_cluster"].first().to_dict()
+
+            _save_model_artifacts(
+                scaler_out, kmeans_out, scaler_gk, kmeans_gk,
+                outfield_names, gk_names,
+                fixture_csv_path, clustered.shape
+            )
+
+            # Modify the CSV file
+            with open(fixture_csv_path, "a") as f:
+                f.write("\n99,Test,DF,Test,eng Premier League,1000,11.1,5,5,10,5,20,10,5,None,None,None")
+
+            artifacts = _load_model_artifacts(fixture_csv_path)
+            assert artifacts is None, "Should return None when dataset hash changes"
+        finally:
+            model_engine.MODELS_DIR = original_models_dir
