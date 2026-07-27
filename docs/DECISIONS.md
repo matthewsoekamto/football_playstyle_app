@@ -72,20 +72,15 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Each record below is recons
 
 ---
 
-## ADR-005: `fetch_possession_stats.py` kept as a standalone, disconnected script
+## ADR-005: `fetch_possession_stats.py` — removed in v1.0
 
-**Context:** The script scrapes FBref's possession table but its output is not consumed anywhere in the app.
+**Context:** The script scraped FBref's possession table but its output was not consumed anywhere in the app.
 
-**Options considered:**
-- (A) Delete it — it's dead code.
-- (B) Wire it directly into `data_loader.py` so the app scrapes live data.
-- (C) Keep it as a standalone, manually-run utility, documented as the seed of a future feature.
+**Chosen:** Removed from the repository during v1.0 cleanup. Its dependency footprint (`requests`, `beautifulsoup4`, `lxml`) was intentionally absent from `requirements.txt`.
 
-**Chosen:** (C) — no code change made by this documentation effort (per the instruction to document, not modify), but the recommendation is explicit: keep it, do not silently delete it, and do not wire it into the live app without addressing its dependencies and FBref's scraping etiquette.
+**Why:** Dead code that would rot without use. If possession stats integration is revisited in v2, data collection should follow the same pattern as the existing dataset pipeline.
 
-**Why:** (A) throws away real, working scraping logic that directly serves a roadmap item (possession-based features — see `PROJECT_SPEC.md §5`). (B) would introduce a live outbound network call and a third-party HTML-parsing dependency into a Streamlit app that currently has zero network calls at request time — a meaningful architectural and reliability change that deserves its own decision record when it's actually proposed, not as a side effect of a scrape script existing.
-
-**Tradeoffs:** Until adopted, this file provides no value to the running app and carries a small maintenance cost (its `bs4`/`requests`/`lxml` dependencies are not pinned anywhere, and FBref's page structure can change silently).
+**Supersedes:** The original (C) "keep as standalone utility" recommendation is superseded by deletion.
 
 **Action item:** See `TASK_BACKLOG.md` (DATA-01) for the concrete integration proposal.
 

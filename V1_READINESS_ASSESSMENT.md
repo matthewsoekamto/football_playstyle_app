@@ -51,7 +51,9 @@ All 5 Production Ready criteria are met. All 9 Feature Complete features are imp
 | STYLE-01: Remove unused `search_query` param | High | Code clarity only; no functional bug. Tracked separately. |
 | TEST-02: Full test coverage per TESTING_GUIDE | Medium | Current 36 tests cover determinism (critical), data loading, filtering, charts, model persistence. Not a §16 criterion. |
 | ARCH-01: Extract magic numbers to named constants | Medium | Readability improvement; no behavioral change. |
-| STYLE-02: Remove dead code in `fetch_possession_stats.py` | Low | Standalone scraper, not in app import graph. |
+| STYLE-02: Remove dead code in `fetch_possession_stats.py` | ✅ **RESOLVED** | Deleted as part of v1.0 cleanup. |
+| PERF-01: Categorical dtypes | Low | Scale not yet large enough to matter. |
+| FUT-01/02/03/04: Multi-season, cache invalidation, multi-page, CSV export | Future | Explicitly v2+ per §17. |
 | DOC-01: Expand README with `/docs` link | Low | README already links to key sections; docs discoverability is fine. |
 | PERF-01: Categorical dtypes | Low | Scale not yet large enough to matter. |
 | FUT-01/02/03/04: Multi-season, cache invalidation, multi-page, CSV export | Future | Explicitly v2+ per §17. |

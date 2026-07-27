@@ -9,7 +9,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`, which this document operati
 
 1. **Always read `ARCHITECTURE.md` first**, then read every file you intend to modify in full — not a snippet, not a search-result excerpt. This codebase is small (5 core modules); there is no excuse for a partial read.
 2. **Identify which module owns the responsibility you're about to change**, using the table in `ARCHITECTURE.md §1`. If your change would mean adding clustering logic to `app.py` or UI rendering to `model_engine.py`, stop — you're about to violate the module boundary; the code belongs in a different file.
-3. **Check `DECISIONS.md` for an existing ADR** covering the area you're about to touch before assuming something is a bug. Several things that look like bugs at a glance are documented, deliberate tradeoffs (e.g. the `fillna(0)`-before-percentile behavior in ADR-007, the disconnected `fetch_possession_stats.py` in ADR-005). Changing a documented decision requires a new ADR, not a silent fix.
+3. **Check `DECISIONS.md` for an existing ADR** covering the area you're about to touch before assuming something is a bug. Several things that look like bugs at a glance are documented, deliberate tradeoffs (e.g. the `fillna(0)`-before-percentile behavior in ADR-007). Changing a documented decision requires a new ADR, not a silent fix.
 4. **Check `TASK_BACKLOG.md`** — if the thing you noticed is already tracked there, don't fix it as an unrelated drive-by edit inside a different task; do it as its own change, referencing the backlog item.
 
 ## 2. Rules for Every Change
