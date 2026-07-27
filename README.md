@@ -93,6 +93,8 @@ Every push runs linting (ruff) and the full test suite.
 
 The app persists fitted `StandardScaler` + `KMeans` models to `models/` (gitignored) with metadata (dataset SHA256, row count, fit timestamp, library versions). On cold start, it loads persisted artifacts instead of refitting when the dataset hasn't changed — enabling fast startup and auditability.
 
+**The `models/` directory is auto-generated.** If no artifacts exist, the app fits a new model on first run and saves them. A fresh clone works immediately without these files.
+
 To explicitly fit and persist:
 
 ```bash
