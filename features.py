@@ -1,4 +1,3 @@
-import pandas as pd
 
 FRIENDLY_NAMES = {
     "gls": "Goals",
