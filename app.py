@@ -275,7 +275,7 @@ render_playstyle_explorer(
 st.divider()
 st.subheader("Elite Player Scatter Plot Comparison")
 
-available_stats = [col for col in FRIENDLY_NAMES.keys() if col in filtered_df.columns]
+available_stats = [col for col in FRIENDLY_NAMES if col in filtered_df.columns]
 if len(available_stats) >= 2 and not filtered_df.empty:
     col1, col2 = st.columns(2)
     with col1:
