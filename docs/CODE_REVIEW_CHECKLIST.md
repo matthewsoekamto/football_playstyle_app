@@ -8,7 +8,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Run through this checklist 
 - [ ] Does the change stay inside the owning module per `ARCHITECTURE.md §1`'s responsibility table? (Data cleaning → `data_loader.py`; clustering → `model_engine.py`; filtering/percentiles/display formatting → `features.py`; charts → `charts.py`; orchestration/rendering → `app.py`.)
 - [ ] If the change adds a new module or restructures the folder layout, is there a corresponding `DECISIONS.md` entry?
 - [ ] Does the change preserve the existing caching boundaries (`@st.cache_data` on `load_and_clean_data`, `get_clustered_data`, `load_app_data`)?
-- [ ] Is `fetch_possession_stats.py`'s disconnected status respected (not silently wired in, not silently deleted)?
+- [ ] Is the fetch_possession_stats.py disconnection respected (not silently wired in)?
 
 ## Naming Review
 - [ ] `snake_case` for functions/variables, `UPPER_SNAKE_CASE` for module-level constants, `_`-prefix for internal helpers — per `STYLE_GUIDE.md §2`.

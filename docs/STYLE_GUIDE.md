@@ -73,8 +73,8 @@ def compute_playstyle_share(df: pd.DataFrame, playstyle_col: str = "Playstyle") 
 
 ## 10. Comments
 
-- Comment *why*, not *what*. Good existing example: `# FBref uses multi-level headers — flatten them` in `fetch_possession_stats.py`. Bad example to avoid: a comment that just restates the line below it in English.
-- Delete commented-out code before merging; never leave it "just in case." (`fetch_possession_stats.py` currently contains one line of genuinely dead code — see `PROJECT_IMPROVEMENT_REPORT.md` — that should be removed the next time that file is touched, per `AI_DEVELOPER_RULEBOOK.md`'s incremental-fix rule, not as an unrelated drive-by edit.)
+- Comment *why*, not *what*. Good existing example: `# FBref uses multi-level headers — flatten them`. Bad example to avoid: a comment that just restates the line below it in English.
+- Delete commented-out code before merging; never leave it "just in case."
 
 ## 11. Formatting
 
@@ -121,4 +121,4 @@ def compute_playstyle_share(df: pd.DataFrame, playstyle_col: str = "Playstyle") 
 - ❌ `print()` inside app-rendering code paths.
 - ❌ Introducing a new third-party dependency without adding it to `requirements.txt` in the same change.
 - ❌ Committing commented-out code or leftover debug prints.
-- ❌ Dead/no-op code such as the unused lambda-conditional line currently in `fetch_possession_stats.py` (`comments = soup.find_all(string=lambda text: isinstance(text, type(soup.find(string=True).__class__) or True) if False else True)`) — this evaluates and is immediately discarded by the next line; new code must never ship a similar leftover.
+- ❌ Dead/no-op code — unused expressions, stale branches, leftover debug prints.

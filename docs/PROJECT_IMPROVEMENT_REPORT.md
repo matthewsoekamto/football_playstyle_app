@@ -1,6 +1,6 @@
 # PROJECT IMPROVEMENT REPORT
 
-Authority: subordinate to `PROJECT_CONSTITUTION.md`. This is a point-in-time engineering review of the repository as inspected (all 5 core modules, `README.md`, `requirements.txt`, `fetch_possession_stats.py`, and the actual dataset). Scores are out of 10 and are meant to be defensible by specific reference to code, not vibes.
+Authority: subordinate to `PROJECT_CONSTITUTION.md`. This is a point-in-time engineering review of the repository as inspected (all 5 core modules, `README.md`, `requirements.txt`, and the actual dataset). Scores are out of 10 and are meant to be defensible by specific reference to code, not vibes.
 
 ---
 
@@ -27,7 +27,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This is a point-in-time eng
 
 ### Architecture (8/10)
 **Strength:** The `data_loader → model_engine → features/charts → app` layering is correct and consistently respected — there is no instance of, e.g., clustering logic leaking into `app.py`, or UI code leaking into `model_engine.py`.
-**Weakness:** No `tests/` or `config/` layer exists. `fetch_possession_stats.py` sits outside the module graph with no formal status (documented now via `DECISIONS.md` ADR-005, but not previously).
+**Weakness:** No `tests/` or `config/` layer exists. A standalone scraper (`fetch_possession_stats.py`, since deleted in v1.0) sat outside the module graph with no formal status (documented at the time via `DECISIONS.md` ADR-005).
 
 ### ML (6/10)
 **Strength:** Per-90 normalization, seeded KMeans (`random_state=42`), sensible outfield/GK model split, human-authored archetype labeling that requires no labeled training data.
@@ -43,7 +43,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This is a point-in-time eng
 
 ### Code Quality (6/10)
 **Strength:** Consistent naming conventions, short single-purpose functions, no obvious code smells beyond the two specific issues below.
-**Weakness:** Zero type hints across the entire codebase. `features.filter_dataframe` has an unused `search_query` parameter — a real, verifiable dead-parameter defect, not a style nitpick. `fetch_possession_stats.py` contains one line of provably dead code (a conditional lambda immediately overwritten by the next statement).
+**Weakness:** Zero type hints across the entire codebase. `features.filter_dataframe` has an unused `search_query` parameter — a real, verifiable dead-parameter defect, not a style nitpick.
 
 ### Maintainability (6/10)
 **Strength:** Small enough today that any single engineer (human or AI) can hold the whole system in working memory.

@@ -21,14 +21,14 @@ Become the clearest, most trustworthy open-source tool for understanding **how a
 ## 3. Mission (12-Month Horizon)
 
 1. Turn the clustering pipeline into a reproducible, testable, versioned ML component — not a script that happens to work.
-2. Expand the data surface (possession, passing, progressive actions — see `fetch_possession_stats.py` as the seed of this) without breaking the existing per-90 feature contract.
+2. Expand the data surface (possession, passing, progressive actions — see `TASK_BACKLOG.md` for the tracking entry) without breaking the existing per-90 feature contract.
 3. Keep the Streamlit UI fast and legible as the dataset and feature set grow.
 4. Make the codebase safe for AI coding agents to operate on unsupervised, by giving them unambiguous, machine-followable rules (see `AI_DEVELOPER_RULEBOOK.md`).
 
 ## 4. Long-Term Goals
 
 - **Multi-season support**: the current loader hardcodes a single filename (`players_data_light-2025_2026.csv`); the long-term architecture must support selecting a season without code changes.
-- **Richer feature space**: integrate possession/passing metrics currently only scraped by the orphaned `fetch_possession_stats.py` into the actual clustering pipeline.
+- **Richer feature space**: integrate possession/passing metrics (tracked in TASK_BACKLOG.md DATA-01, not yet implemented) into the actual clustering pipeline.
 - **Model governance**: move from "recompute KMeans on every cold cache" to a versioned, persisted model artifact with a documented retraining policy.
 - **Test coverage** as a first-class deliverable, not an afterthought — the project currently has zero automated tests.
 - **Portfolio readiness**: the repository itself (docs, tests, CI, structure) should be as much a demonstration of engineering judgment as the app is a demonstration of ML/product judgment.
@@ -68,7 +68,7 @@ Cache expensive, deterministic computation (`@st.cache_data` on `load_and_clean_
 
 ## 11. Maintainability Philosophy
 
-Every module has exactly one reason to change. `fetch_possession_stats.py` currently violates the spirit of this by existing in the repo but not participating in the module graph at all (`data_loader.py` never imports it) — it must either be formally adopted into the pipeline or clearly marked as a standalone, optional utility (see `DECISIONS.md`).
+Every module has exactly one reason to change. The file `fetch_possession_stats.py` was removed in v1.0 cleanup — see ADR-005.
 
 ## 12. Refactoring Philosophy
 
@@ -76,7 +76,7 @@ Refactor in the smallest slice that proves the point. Never refactor and add a f
 
 ## 13. Security Philosophy
 
-The current attack surface is small (local CSV, no auth, no network calls from the Streamlit app itself) but is not zero: `fetch_possession_stats.py` performs an outbound HTTP request and HTML parse against a third-party site, and any future file-upload feature would introduce untrusted input. See `SECURITY_GUIDE.md`.
+The current attack surface is small (local CSV, no auth, no network calls from the Streamlit app itself) but is not zero: any future file-upload feature would introduce untrusted input. See `SECURITY_GUIDE.md`.
 
 ---
 

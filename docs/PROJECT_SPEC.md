@@ -34,12 +34,10 @@ Confirmed by direct inspection of `app.py`, `data_loader.py`, `model_engine.py`,
 - **Feature/percentile layer** (`features.py`): position-scoped percentiles for comparison stats, position-aware stat sets for head-to-head comparison, filtering by league/position/squad/playstyle, and display-table formatting with friendly column names.
 - **Visualization** (`charts.py`): a distribution bar chart of playstyle counts, a radar chart per playstyle centroid, a z-score-based "elite outlier" scatter plot (top 100 by combined outlier score, top 15 labeled), and a head-to-head percentile radar.
 - **UI** (`app.py`): sidebar filters (league, position, squad, playstyle), accent-insensitive name search, a sortable results table, the Playstyle Explorer, the scatter plot, and the head-to-head comparison tool — all on one page, cached with `st.cache_data`.
-- **Standalone data-collection script** (`fetch_possession_stats.py`): scrapes FBref's Big-5-leagues possession table into a CSV. **Not currently wired into the app** — its output is not consumed by `data_loader.py` or any other module.
-
 ## 5. Future Capabilities (Roadmap-Level — see `TASK_BACKLOG.md` for execution detail)
 
 - Multi-season support (season selector instead of a hardcoded filename).
-- Integrating possession/passing/progression stats (the natural next step for `fetch_possession_stats.py`) into the clustering feature set.
+- Integrating possession/passing/progression stats into the clustering feature set.
 - Persisted, versioned model artifacts instead of recompute-on-cold-cache.
 - Automated testing and CI.
 - Optional: saved/shareable comparisons, CSV export of filtered views.
@@ -49,7 +47,7 @@ Confirmed by direct inspection of `app.py`, `data_loader.py`, `model_engine.py`,
 - **User accounts / authentication.** No user data is stored; nothing requires login.
 - **Live/in-match data.** The dataset is season-aggregate stats, not live feeds.
 - **Predictive modeling** (e.g. predicting future performance, transfer value, injury risk). This is a descriptive clustering tool, not a forecasting tool — conflating the two would misrepresent what K-Means output means.
-- **Automated scraping in production.** `fetch_possession_stats.py` is explicitly a *local, manual* script (its own docstring says "Run this script locally"); the deployed Streamlit app must never perform live scraping of a third-party site at request time.
+- **Automated scraping in production.** The deployed Streamlit app must never perform live scraping of a third-party site at request time.
 - **Mobile-native app.** Streamlit's responsive layout is the only supported surface.
 
 ## 7. Constraints
@@ -57,7 +55,7 @@ Confirmed by direct inspection of `app.py`, `data_loader.py`, `model_engine.py`,
 - **Data constraint**: the app is only as good as one CSV snapshot; there is no update mechanism today beyond manually replacing the file.
 - **Deployment constraint**: designed for Streamlit Community Cloud (per `README.md`) — single-process, no background workers, no persistent database.
 - **Minutes-played constraint**: the `Min >= 270` cutoff (three full matches) is a deliberate small-sample-size guard baked into `data_loader.py`; any change to this threshold is a product decision, not a bugfix, and must go through `DECISIONS.md`.
-- **License/ToS constraint**: FBref data usage via scraping (`fetch_possession_stats.py`) must remain manual, low-frequency, and rate-limited (the existing `time.sleep(3)` is the minimum courtesy, not a ceiling).
+- **License/ToS constraint**: FBref data usage via scraping must remain manual, low-frequency, and rate-limited.
 
 ## 8. Assumptions
 

@@ -42,12 +42,13 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 
 ## MEDIUM
 
-### DATA-01: Integrate possession stats from `fetch_possession_stats.py` into the pipeline
+### DATA-01: Integrate possession/passing stats into the pipeline
 - **Priority:** Medium | **Difficulty:** High | **Impact:** High (materially richer playstyle signal) | **Effort:** ~3-5 days
-- **Dependencies:** TEST-01 (the scaler fragility ML-01 is now resolved â€” see ADR-009)
-- **Files affected:** `data_loader.py` (new loader/merge step), `model_engine.py` (`OUTFIELD_FEATURES`, `OUTFIELD_ARCHETYPES` re-tuning), `requirements.txt` (add `requests`, `beautifulsoup4`, `lxml` if the fetch step is formally adopted, or keep it purely as an offline pre-step)
-- **Acceptance criteria:** Possession/passing stats join the outfield feature set via the same per-90 normalization pipeline; `OUTFIELD_ARCHETYPES` centroid targets are re-validated (adding dimensions changes clustering geometry â€” this is not a drop-in change); resulting clusters are manually sanity-checked.
-- **Expected outcome:** Materially better playstyle differentiation (e.g. distinguishing possession-retaining midfielders from pressing ones, which the current 6-feature set cannot do). See `DECISIONS.md` ADR-005, `ML_GUIDELINES.md Â§14`, `PROJECT_SPEC.md Â§5`.
+- **Status:** v2 scoped. The original scraper (`fetch_possession_stats.py`) has been deleted in v1.0 cleanup. A new data-collection mechanism is needed.
+- **Dependencies:** TEST-01 (the scaler fragility ML-01 is now resolved — see ADR-009)
+- **Files affected:** `data_loader.py` (new loader/merge step), `model_engine.py` (`OUTFIELD_FEATURES`, `OUTFIELD_ARCHETYPES` re-tuning), possibly new scraper or alternate data source
+- **Acceptance criteria:** Possession/passing stats join the outfield feature set via the same per-90 normalization pipeline; `OUTFIELD_ARCHETYPES` centroid targets are re-validated (adding dimensions changes clustering geometry — this is not a drop-in change); resulting clusters are manually sanity-checked.
+- **Expected outcome:** Materially better playstyle differentiation (e.g. distinguishing possession-retaining midfielders from pressing ones, which the current 6-feature set cannot do). See `DECISIONS.md` ADR-005, `ML_GUIDELINES.md §14`, `PROJECT_SPEC.md §5`.
 
 ### ML-03: Model persistence — ✅ RESOLVED
 - **Status:** RESOLVED. Implemented `joblib` persistence for `StandardScaler` + `KMeans` objects with metadata JSON (dataset hash, row count, fit timestamp, library versions). Added `_get_or_fit_model` with `@st.cache_resource`, `_save_model_artifacts`, `_load_model_artifacts`, `_compute_dataset_hash`, `_apply_loaded_model`. CLI `--persist` flag on `model_engine.py`. Added tests for save/load roundtrip and hash-mismatch invalidation.
@@ -81,11 +82,8 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 ## LOW
 
 ### STYLE-02: Remove dead code in `fetch_possession_stats.py`
+- **Status:** RESOLVED. File was deleted in v1.0 cleanup.
 - **Priority:** Low | **Difficulty:** Trivial | **Impact:** Low | **Effort:** ~10 minutes
-- **Dependencies:** None
-- **Files affected:** `fetch_possession_stats.py`
-- **Acceptance criteria:** The no-op line (`comments = soup.find_all(string=lambda text: isinstance(text, type(soup.find(string=True).__class__) or True) if False else True)`), which is immediately overwritten by the next line, is removed.
-- **Expected outcome:** Cleaner script; no functional change (verify the removal truly has zero effect before merging, per `AI_DEVELOPER_RULEBOOK.md`'s "never remove functionality unless requested/verified safe" spirit â€” in this case the line's output is provably unused).
 
 ### DOC-01: Expand `README.md` with a link to `/docs`
 - **Priority:** Low | **Difficulty:** Trivial | **Impact:** Low-Medium (discoverability) | **Effort:** ~15 minutes

@@ -14,7 +14,6 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This document is the single
 ├── model_engine.py                 # Feature groups, archetypes, KMeans clustering, labeling, persistence
 ├── features.py                     # Filtering, percentiles, display formatting, stat catalogs
 ├── charts.py                       # Plotly figure builders (pure functions, no Streamlit calls)
-├── fetch_possession_stats.py       # Standalone/manual FBref scraper — NOT imported by the app
 ├── data/                           # Dataset directory
 │   └── players_data_light-2025_2026.csv  # Bundled dataset (2,839 rows × 53 raw columns)
 ├── models/                         # Persisted ML artifacts (gitignored, created at runtime)
@@ -40,7 +39,6 @@ There is currently **no `src/` package layout, no `tests/` directory, and no `co
 | `model_engine.py` | Feature lists, archetype definitions, `group_players()`, `get_cluster_profiles()`, `get_clustered_data()` | `data_loader` | `app` |
 | `features.py` | `FRIENDLY_NAMES`, `POSITION_COMPARE_STATS`, `EXPLORER_*_FEATURES`, percentile computation, filtering, table formatting | — (no project imports) | `app`, `charts` |
 | `charts.py` | Pure Plotly figure builders — scatter, radar (H2H and playstyle), distribution bar | `features` (for `friendly_label`) | `app` |
-| `fetch_possession_stats.py` | Manual scraper for FBref possession stats → local CSV | — | — (standalone; not part of the app's import graph) |
 
 ## 2. Module Dependency Graph
 
@@ -52,14 +50,6 @@ graph TD
     M --> D[data_loader.py]
     C --> F
     D -.reads.-> CSV[(players_data_light-2025_2026.csv)]
-    FP[fetch_possession_stats.py] -.scrapes.-> FBREF[(fbref.com)]
-    FP -.writes.-> OUT[(fbref_possession_2025_2026.csv)]
-
-    style FP fill:#333,stroke:#999,stroke-dasharray: 5 5
-    style OUT fill:#333,stroke:#999,stroke-dasharray: 5 5
-```
-
-`fetch_possession_stats.py` is drawn disconnected deliberately: it does not participate in the runtime import graph of the Streamlit app. See `DECISIONS.md` for the reasoning and its intended future.
 
 ## 3. Data Flow (Cold Cache)
 
@@ -166,6 +156,6 @@ Because all three are keyed only on a constant string filepath, cache invalidati
 
 `CSV → data_loader.load_and_clean_data → model_engine.group_players → app.load_app_data (rename + percentiles + unique labels) → features.filter_dataframe (per user filters) → app.apply_search_filter (per user search) → features.format_display_table / charts.build_*`
 
-## 10. Non-Runtime Component: `fetch_possession_stats.py`
+## 10. Removed: `fetch_possession_stats.py`
 
-A manually-run scraper against `fbref.com`'s Big-5 possession table. It is architecturally **out-of-band**: it has its own dependency footprint (`requests`, `beautifulsoup4`, `lxml` — none of which are in `requirements.txt`, correctly, since it is not part of the deployed app) and its output (`fbref_possession_2025_2026.csv`) is not read by any other module. Treat it as the seed of a future ingestion pipeline, not as dead code to delete — see `DECISIONS.md`.
+Removed during v1.0 cleanup. The file had been a standalone FBref scraper, deliberately disconnected from the app's import graph. If possession stats are revisited in v2, a new data-collection pipeline should follow the existing dataset pattern.

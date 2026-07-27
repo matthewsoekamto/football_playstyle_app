@@ -115,6 +115,6 @@ Until persistence exists, **the model IS the code + the CSV** — any change to 
 
 ## 14. Future Extensibility
 
-- **Possession/passing features** (the natural consumer of `fetch_possession_stats.py`'s output, once adopted â€” see `DECISIONS.md` ADR-005): when integrated, they must go through the same per-90 normalization pipeline and get added to `OUTFIELD_FEATURES` (and likely require re-tuning `OUTFIELD_ARCHETYPES` centroid targets, since adding dimensions changes the clustering geometry â€” this is not a drop-in addition).
+- **Possession/passing features** (if integrated in v2 — see the v1.0 ADR-005 update in `DECISIONS.md`): when integrated, they must go through the same per-90 normalization pipeline and get added to `OUTFIELD_FEATURES` (and likely require re-tuning `OUTFIELD_ARCHETYPES` centroid targets, since adding dimensions changes the clustering geometry â€” this is not a drop-in addition).
 - **Multi-season support**: when the hardcoded filename is replaced with a season parameter (`TASK_BACKLOG.md`), clustering must remain **season-scoped** â€” never cluster across multiple seasons' rows for the same player as if they were independent observations without an explicit, documented decision about how to handle within-player, cross-season comparison.
 

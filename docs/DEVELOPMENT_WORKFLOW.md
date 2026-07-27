@@ -63,7 +63,7 @@ No code may be written before this reading is complete. Reading is proportional 
 | Any bug fix or new logic of any kind | `TESTING_GUIDE.md` (a test is required — see §5) |
 
 ### 2.3 Always check before assuming something is a bug
-- **`DECISIONS.md`** — search for an ADR covering the area. Several things that look like defects at first glance are documented, deliberate tradeoffs (e.g. `fillna(0)`-before-percentile in ADR-007, the disconnected `fetch_possession_stats.py` in ADR-005, the greedy archetype-matching in ADR-002). Treat an undocumented "fix" of a decision recorded in `DECISIONS.md` as a process violation, not a helpful cleanup.
+- **`DECISIONS.md`** — search for an ADR covering the area. Several things that look like defects at first glance are documented, deliberate tradeoffs (e.g. `fillna(0)`-before-percentile in ADR-007, the greedy archetype-matching in ADR-002). Treat an undocumented "fix" of a decision recorded in `DECISIONS.md` as a process violation, not a helpful cleanup.
 - **`TASK_BACKLOG.md`** — search for an existing entry (e.g. `ML-01`, `STYLE-01`). If found, work the task under its existing ID and acceptance criteria rather than reinventing scope.
 
 ### 2.4 Read the actual files you intend to change, in full
