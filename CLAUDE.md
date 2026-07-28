@@ -70,22 +70,48 @@ Then check **DECISIONS.md** (ADRs) and **TASK_BACKLOG.md** (tracked items) befor
 
 ## Docs Directory
 
-All docs live flat in `docs/` (16 .md files). The docs/README.md describes an aspirational subdirectory layout that hasn't been applied yet — don't rely on those subdirectory paths.
+All docs live in `docs/` organized by authority and domain:
 
-Key docs in order of importance:
-- **PROJECT_CONSTITUTION.md** — highest authority, rules all agents must follow
-- **ARCHITECTURE.md** — how the system is put together (read before any code change)
-- **DECISIONS.md** — ADR log for every deliberate tradeoff
-- **ML_GUIDELINES.md** — clustering/feature engineering standards
-- **STYLE_GUIDE.md** — Python coding conventions (type hints, naming, forbidden patterns)
-- **STREAMLIT_GUIDELINES.md** — UI conventions (layout, chart template, empty states)
-- **DEVELOPMENT_WORKFLOW.md** — mandatory SOP (reading, planning, testing, completion)
-- **AI_DEVELOPER_RULEBOOK.md** — operating rules for AI agents
-- **CODE_REVIEW_CHECKLIST.md** — checklist to run before/after every change
-- **TESTING_GUIDE.md** — test expectations per module
-- **TASK_BACKLOG.md** — tracked tech debt items (ML-01, SEC-01, STYLE-01, etc.)
+```
+docs/
+├── README.md                                  ← entry point
+├── 00-constitution/
+│   └── PROJECT_CONSTITUTION.md                 Highest authority: vision, rules, DoD
+├── 01-product/
+│   └── PROJECT_SPEC.md                         Product purpose, users, capabilities
+├── 02-architecture/
+│   ├── ARCHITECTURE.md                         System structure, data flow, ML pipeline
+│   └── DECISIONS.md                            ADR log of real design decisions
+├── 03-engineering-standards/
+│   ├── STYLE_GUIDE.md                          Python coding standards for this repo
+│   ├── ML_GUIDELINES.md                        Feature engineering, clustering, evaluation
+│   ├── STREAMLIT_GUIDELINES.md                 UI/UX handbook for app.py
+│   ├── PERFORMANCE_GUIDE.md                    Caching, pandas/numpy, rerun optimization
+│   └── SECURITY_GUIDE.md                       Input validation, secrets, deps
+├── 04-process/
+│   ├── AI_DEVELOPER_RULEBOOK.md                Operating rules for AI coding agents
+│   ├── CODE_REVIEW_CHECKLIST.md                Checklist before/after every change
+│   ├── DEVELOPMENT_WORKFLOW.md                 Mandatory SOP (read before any task)
+│   └── TESTING_GUIDE.md                        Concrete test plan per module
+└── 05-roadmap/
+    ├── TASK_BACKLOG.md                          Prioritized, estimated backlog
+    └── PROJECT_IMPROVEMENT_REPORT.md            Scored review + ROI recommendations
+```
 
-The CONVENTION: `PROJECT_CONSTITUTION.md > everything else in /docs > code > your best guess`. If a doc and code disagree, that's a bug in whichever is stale — fix the doc in the same change as the code.
+Key docs in reading order:
+1. **00-constitution/PROJECT_CONSTITUTION.md** — highest authority
+2. **04-process/DEVELOPMENT_WORKFLOW.md** — mandatory SOP
+3. **02-architecture/ARCHITECTURE.md** — system structure
+4. **02-architecture/DECISIONS.md** — ADRs
+5. **03-engineering-standards/ML_GUIDELINES.md** — ML standards
+6. **03-engineering-standards/STYLE_GUIDE.md** — Python conventions
+7. **03-engineering-standards/STREAMLIT_GUIDELINES.md** — UI conventions
+8. **04-process/AI_DEVELOPER_RULEBOOK.md** — AI agent rules
+9. **04-process/CODE_REVIEW_CHECKLIST.md** — review checklist
+10. **04-process/TESTING_GUIDE.md** — test expectations
+11. **05-roadmap/TASK_BACKLOG.md** — tracked items
+
+The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /docs > code > your best guess`. If a doc and code disagree, that's a bug in whichever is stale — fix the doc in the same change as the code.
 
 ## Changelog (Session Chronicle)
 
