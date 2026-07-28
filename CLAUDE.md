@@ -12,30 +12,45 @@ streamlit run app.py
 python model_engine.py
 python data_loader.py
 
+# Model persistence: fit + save + evaluate
+python model_engine.py --persist              # fit + save + log eval metrics
+python model_engine.py --evaluate             # fit + eval (no save)
+
 # Run tests
 python -m pytest tests/ -v                    # all tests
 python -m pytest tests/test_model_engine.py -v # single file
 python -m pytest tests/ -k "determinism" -v   # specific test
+
+# Lint
+ruff check .
 
 # Install
 pip install -r requirements.txt               # runtime deps
 pip install -r requirements-dev.txt            # dev deps (pytest, ruff)
 ```
 
-## Architecture (5-Module Pipeline)
+## Architecture (5-Module Pipeline + Tests + Artifacts)
 
 ```
 app.py  (Streamlit orchestration — no ML/cleaning logic)
   ├─ charts.py      (pure Plotly figure builders)
   ├─ features.py    (filtering, percentiles, display formatting)
-  └─ model_engine.py (KMeans clustering, archetype labeling)
+  └─ model_engine.py (KMeans clustering, archetype labeling, persistence)
         └─ data_loader.py  (CSV load, column normalization, per-90 rates)
-              └─ data/players_data_light-2025_2026.csv
+              └─ data/players_data_light-2025_2026.csv (provisional)
+tests/              (pytest + conftest.py fixture, one file per module)
+.github/workflows/  (CI: ruff check + pytest on push/PR to main)
+models/             (gitignored: persisted scalers, KMeans, metadata.json)
 ```
 
 Dependency direction is strictly one-way. No module imports from `app.py`. `charts.py` and `features.py` are importable without Streamlit runtime.
 
-Data flow on cold cache: `CSV → data_loader → model_engine.group_players → app.load_app_data (adds percentiles + unique labels) → features.filter_dataframe → render sections`. Three `@st.cache_data` layers (CSV read, clustering, full load) keyed on filepath — CSV replacement without restart serves stale data.
+Data flow on cold cache: `CSV → data_loader → model_engine.group_players → app.load_app_data (adds percentiles + unique labels) → features.filter_dataframe → render sections`. Three caching layers:
+- `data_loader.load_and_clean_data` — `@st.cache_data` keyed on filepath
+- `model_engine.get_clustered_data` — `@st.cache_data` keyed on filepath
+- `model_engine._get_or_fit_model` — `@st.cache_resource` (loads persisted joblib artifacts)
+
+CSV replacement without restart serves stale data (filepath key doesn't change). Model persistence artifacts are validated by SHA256 hash of the CSV — changing the CSV triggers automatic refit.
 
 ## Key Design Points
 
@@ -53,10 +68,18 @@ Data flow on cold cache: `CSV → data_loader → model_engine.group_players →
 - `OUTFIELD_FEATURES` / `GK_FEATURES` (clustering input) and `EXPLORER_OUTFIELD_FEATURES` / `EXPLORER_GK_FEATURES` (radar display) are separate constants that currently match. They are allowed to diverge — don't merge them.
 - 152 duplicate player names exist in the dataset (mid-season transfers). `add_unique_player_labels` appends squad names only for duplicates. This is correct, not a data quality bug.
 - `filter_dataframe` has an unused `search_query` parameter (STYLE-01) — not a bug to fix as a drive-by, it's tracked separately.
+- `int_p90` is computed twice (once via `OUTFIELD_RATE_STATS`, once via `GK_RATE_STATS`, both include `"int"`) inside `data_loader._add_per90_rates`. Each rate-stat list needs to be independently complete for its consumer.
+- `evaluate_clustering` expects pre-scaled numpy arrays, not raw DataFrames — it's called after `StandardScaler` in `group_players`.
+- `app.py` does not use `if __name__ == "__main__":` — this is idiomatic for Streamlit (it re-executes the script directly). Don't "fix" this.
+- The GK-vs-outfield comparison warning in `render_h2h_section` has two `elif` branches (GK→outfield and outfield→GK). Both must be preserved.
 
 ## Dataset
 
+**⚠️ Provisional — not yet final.** The current dataset is a work-in-progress source for development and pipeline validation, not the final production dataset.
+
 `data/players_data_light-2025_2026.csv` — 2,839 rows × 53 columns, Big 5 European leagues (2025/26). After Min≥270 filter: 2,183 rows, ~155 GK, ~2,028 outfield (GK count drops from 194 to 155 because GKs tend to accrue fewer minutes than outfield players). FBref export shape with comma-flattened multi-index headers. GK-only stats (Saves, Save%, GA, CS, etc.) are empty for outfield rows.
+
+Additional test/scratch CSVs (`wc2022_*.csv`) exist in the data directory but are not consumed by the app — they may hold raw data for the eventual final dataset.
 
 ## Mandatory Pre-Read (per DEVELOPMENT_WORKFLOW.md)
 
@@ -116,6 +139,12 @@ The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /d
 ## Changelog (Session Chronicle)
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
+
+### 2026-07-28 — CLAUDE.md audit: commands, architecture, traps, dataset status
+- **Commands:** Added `ruff check .`, `model_engine.py --persist`/`--evaluate`
+- **Architecture:** Added tests/, CI, models/ to tree. Documented all 3 cache layers + SHA256 invalidation
+- **Known traps:** Added `int_p90` double-compute, `evaluate_clustering` numpy req, Streamlit no-`__main__`, both GK warning branches
+- **Dataset:** Marked as **provisional** (not yet final), noted `wc2022_*.csv` scratch files
 
 ### 2026-07-26 — CI-01, ML-03, DEP-01 implemented
 - **CI-01:** Created `.github/workflows/ci.yml` running `ruff check .` and `pytest tests/ -v` on every push/PR to main. Added `ruff>=0.4.0` to `requirements-dev.txt`.
