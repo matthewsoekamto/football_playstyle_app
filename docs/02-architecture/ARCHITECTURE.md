@@ -14,8 +14,20 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This document is the single
 ├── model_engine.py                 # Feature groups, archetypes, KMeans clustering, labeling, persistence
 ├── features.py                     # Filtering, percentiles, display formatting, stat catalogs
 ├── charts.py                       # Plotly figure builders (pure functions, no Streamlit calls)
+├── statsbomb_parser.py             # v2: StatsBomb event parser → 21 event-derived features (P3)
+├── build_master_dataset.py         # v2: FBref + StatsBomb → data/wc2022_players_master.csv
+├── scripts/
+│   ├── download_statsbomb.py       # v2: fetch raw StatsBomb Open Data (gitignored target)
+│   └── check_dataset.py            # v2: dataset sanity checks
 ├── data/                           # Dataset directory
-│   └── players_data_light-2025_2026.csv  # Bundled dataset (2,839 rows × 53 raw columns)
+│   ├── players_data_light-2025_2026.csv  # v1 legacy dataset (2,839 rows × 53 raw columns)
+│   ├── wc2022_players_master.csv         # v2 master (217 rows × 167 cols, P3 merged)
+│   ├── wc2022_standard/shooting/miscellaneous/gk.csv  # v2 FBref inputs
+│   └── statsbomb/                  # v2 raw Open Data JSON (gitignored; events/, lineups/, matches/)
+├── tests/                          # pytest + conftest.py fixture, one file per module
+│   ├── test_data_loader.py / test_model_engine.py / test_features.py / test_charts.py
+│   ├── test_statsbomb_parser.py    # 35 parser tests, incl. locked P3 contract + real-dataset cardinality
+│   └── fixtures/statsbomb/events/match_fixture.json  # real-event parser fixture
 ├── models/                         # Persisted ML artifacts (gitignored, created at runtime)
 │   ├── outfield_scaler.joblib
 │   ├── outfield_kmeans.joblib
@@ -23,12 +35,15 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This document is the single
 │   ├── gk_kmeans.joblib
 │   ├── cluster_labels.json
 │   └── metadata.json
+├── .github/workflows/ci.yml        # ruff check + pytest on push/PR to main
 ├── requirements.txt                # streamlit, pandas, scikit-learn, plotly, joblib
 ├── requirements-dev.txt            # pytest, ruff
 └── README.md                       # Human-facing quickstart
 ```
 
-There is currently **no `src/` package layout, no `tests/` directory, and no `config/` directory.** This is acceptable for the project's current size (5 top-level modules) per `PROJECT_CONSTITUTION.md §11`, but is flagged in `TASK_BACKLOG.md` as the project grows past this size.
+There is **no `src/` package layout and no `config/` directory.** This is acceptable for the project's current size per `PROJECT_CONSTITUTION.md §11`. `tests/` and CI exist (see `TASK_BACKLOG.md` for backlog status).
+
+> **Two parallel pipelines.** The v1 five-module app (above the `statsbomb_parser.py` line) is archived/legacy. The **v2 data pipeline** (`statsbomb_parser.py`, `build_master_dataset.py`, `scripts/`) builds the WC 2022 hybrid dataset but is **not yet wired into `app.py`** — the v2 clustering engine (P6–P9) has not landed.
 
 ### Purpose of every file
 
@@ -39,6 +54,11 @@ There is currently **no `src/` package layout, no `tests/` directory, and no `co
 | `model_engine.py` | Feature lists, archetype definitions, `group_players()`, `get_cluster_profiles()`, `get_clustered_data()` | `data_loader` | `app` |
 | `features.py` | `FRIENDLY_NAMES`, `POSITION_COMPARE_STATS`, `EXPLORER_*_FEATURES`, percentile computation, filtering, table formatting | — (no project imports) | `app`, `charts` |
 | `charts.py` | Pure Plotly figure builders — scatter, radar (H2H and playstyle), distribution bar | `features` (for `friendly_label`) | `app` |
+| `statsbomb_parser.py` | v2: `parse_events()`/`iter_match_events()`/`parse_competition()` — raw StatsBomb events → 21 event-derived features per player (P3) | — (no project imports; pure parser) | `build_master_dataset` |
+| `build_master_dataset.py` | v2: FBref CSVs + StatsBomb features → `data/wc2022_players_master.csv`; `merge_statsbomb_event_features()` | `statsbomb_parser` | — (CLI `__main__`) |
+| `scripts/download_statsbomb.py` | v2: fetch raw StatsBomb Open Data (competition 43 / season 106) into `data/statsbomb/` | — (no project imports) | — (CLI) |
+
+The **v2 modules** (`statsbomb_parser`, `build_master_dataset`) are deliberately not in the v1 app's import graph — the v2 rebuild lands as a separate engine (P6–P9). See §11.
 
 ## 2. Module Dependency Graph
 
@@ -159,3 +179,27 @@ Because all three are keyed only on a constant string filepath, cache invalidati
 ## 10. Removed: `fetch_possession_stats.py`
 
 Removed during v1.0 cleanup. The file had been a standalone FBref scraper, deliberately disconnected from the app's import graph. If possession stats are revisited in v2, a new data-collection pipeline should follow the existing dataset pattern.
+
+## 11. v2 Data Pipeline (WC 2022 Rebuild, P3 complete)
+
+The v2 pipeline builds `data/wc2022_players_master.csv` (217 rows × 167 cols) from hybrid FBref + StatsBomb sources. **P3 (StatsBomb event parser) is complete** at commit `7ccb424`; P1–P2 (FBref load/schema) and P4–P5 (player matching, merge) were completed in the V3 merge at `59ef406`.
+
+```
+data/statsbomb/ (raw Open Data, gitignored)
+      │  scripts/download_statsbomb.py  (competition 43 / season 106, 64 matches)
+      ▼
+statsbomb_parser.py  → per-player 21 event-derived features (P3)
+      │
+      ▼
+build_master_dataset.py ── FBref CSVs ──► data/wc2022_players_master.csv
+```
+
+**P3 contract (locked, 21 columns):** 18 count features (`pressures_*`, `claims`, `sweeper_clearances`, `headed_clearances`, `recoveries`, `passes_received`, `one_touch_finishes`, `launch_passes`, `def_actions_outside_box`, `touches_*`, `final_third_entries`, `carries_into_box`, `headers`) normalized per-90 against FBref minutes; `avg_def_position_y` (mean GK defensive position); `cross_accuracy_pct` (completed/attempted ratio); `goals_prevented_p90` + `reflex_saves_p90` (authorized heuristics on linked-shot `statsbomb_xg`).
+
+**Key design points:**
+- **Two-pass parse** (`parse_events`): first pass indexes shots by event id so GK `related_events` resolve to linked shots.
+- **Acting-team frame:** every event is in the acting team's frame (attacking goal at x=120). Zone boundaries (`FINAL_THIRD_X=80`, `BOX_X_MIN=102`, etc.) are module constants.
+- **GK gating:** 7 GK-scoped features (`claims`, `sweeper_clearances`, `launch_passes`, `def_actions_outside_box`, `avg_def_position_y`, `goals_prevented`, `reflex_saves`) are zero-filled for non-GKs in the merge (`pos_n == "GK"`).
+- **Identity bridge:** StatsBomb `player_id` → `player.name` → `normalize_name()` → master `player_sb`, with squad disambiguation (`normalize_squad`). Only one multi-variant player (Foden) exists, and he is not eligible.
+- **Reproducible raw data:** `data/statsbomb/` is gitignored; `scripts/download_statsbomb.py` re-fetches it (64 matches).
+- **Locked by tests:** `tests/test_statsbomb_parser.py` (35 tests) pins the contract, zone boundaries, GK heuristics, merge gating, and — guarded on the real dataset — 217-row cardinality.

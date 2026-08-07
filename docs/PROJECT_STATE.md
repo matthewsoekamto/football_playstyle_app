@@ -1,6 +1,6 @@
 # PROJECT_STATE.md
 
-> Single-source-of-truth snapshot of the Football Playstyle Clustering App. Updated 2026-07-28.
+> Single-source-of-truth snapshot of the Football Playstyle Clustering App. Updated 2026-08-07.
 
 ---
 
@@ -74,6 +74,8 @@ Core principles:
 
 Current objective: Build the hybrid FBref + StatsBomb dataset that powers the new clustering engine.
 
+**P1–P5 (data pipeline) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`. `data/wc2022_players_master.csv` is now 217 rows × 167 cols (146 pre-P3 + 21 P3 event-derived). Remaining: P6–P9 (feature engineering, position-scoped clustering, evaluation, visualization).
+
 ### Goal
 
 Rebuild the entire playstyle engine around the FIFA World Cup 2022 dataset using a hybrid FBref + StatsBomb architecture.
@@ -137,6 +139,10 @@ FBref Loader                StatsBomb Parser
 | **FEATURE_VALIDATION.md** | Feature-by-feature validation against StatsBomb Open Data |
 | **DATA_SOURCE_MAPPING.md** | Canonical source assignment for every feature (FBref vs StatsBomb) |
 | **Project architecture defined** | Position-scoped clustering, hybrid sourcing, deterministic pipeline |
+| **P1–P2 (FBref schema + loader/merger)** | V3-corrected FBref build (`59ef406`) |
+| **P3 (StatsBomb parser)** | `statsbomb_parser.py` → 21 locked event-derived features (`7ccb424`); downloader `scripts/download_statsbomb.py` |
+| **P4 (player matching)** | FBref↔StatsBomb identity bridge (name+squad, `normalize_name`) in `build_master_dataset.py` |
+| **P5 (merge dataset)** | `data/wc2022_players_master.csv` — 217 rows × 167 cols |
 
 ### Success Criteria (v2 Complete)
 
@@ -146,20 +152,14 @@ FBref Loader                StatsBomb Parser
 - ✓ Stable clustering metrics (silhouette, Davies-Bouldin, bootstrap stability)
 - ✓ Interactive visualization complete (position-aware radar, distribution, H2H)
 
-### Next Tasks (v2 — Phase 2)
+### Next Tasks (v2 — Phase 3 onward)
 
-#### Data
-| Priority | Task | Effort |
-|---|---|---|
-| **P1** | Validate FBref schema | ~1 day |
-| **P2** | Build FBref loader/merger | ~2 days |
-| **P3** | Build StatsBomb parser | ~3 days |
-| **P4** | Player matching (FBref ↔ StatsBomb) | ~2 days |
+#### Data — ✅ DONE (P1–P5)
+P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), StatsBomb parser (`7ccb424`), player matching, and merge into `data/wc2022_players_master.csv` (217 rows × 167 cols).
 
 #### ML
 | Priority | Task | Effort |
 |---|---|---|
-| **P5** | Merge dataset → `wc2022_players_master.csv` | ~1 day |
 | **P6** | Feature engineering (position-scoped) | ~2 days |
 | **P7** | Cluster redesign (position-scoped KMeans) | ~3 days |
 
@@ -192,4 +192,4 @@ FBref Loader                StatsBomb Parser
 
 ---
 
-*Next update: when P1–P3 complete and `wc2022_players_master.csv` lands.*
+*Updated 2026-08-07: P1–P5 (data pipeline) complete. Next update when P6–P9 land.*

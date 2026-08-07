@@ -21,6 +21,11 @@ python -m pytest tests/ -v                    # all tests
 python -m pytest tests/test_model_engine.py -v # single file
 python -m pytest tests/ -k "determinism" -v   # specific test
 
+# v2 data pipeline (WC 2022 rebuild)
+python scripts/download_statsbomb.py          # fetch StatsBomb Open Data into data/statsbomb/
+python statsbomb_parser.py                    # parse raw events -> 21 event-derived features (P3)
+python build_master_dataset.py                # FBref + StatsBomb -> data/wc2022_players_master.csv
+
 # Lint
 ruff check .
 
@@ -37,10 +42,17 @@ app.py  (Streamlit orchestration — no ML/cleaning logic)
   ├─ features.py    (filtering, percentiles, display formatting)
   └─ model_engine.py (KMeans clustering, archetype labeling, persistence)
         └─ data_loader.py  (CSV load, column normalization, per-90 rates)
-              └─ data/players_data_light-2025_2026.csv (provisional)
+              └─ data/players_data_light-2025_2026.csv (v1 legacy, provisional)
 tests/              (pytest + conftest.py fixture, one file per module)
 .github/workflows/  (CI: ruff check + pytest on push/PR to main)
 models/             (gitignored: persisted scalers, KMeans, metadata.json)
+
+v2 data pipeline (WC 2022 rebuild, in parallel — not yet wired into app.py)
+statsbomb_parser.py   (pure parser: StatsBomb events -> 21 event-derived features, P3)
+scripts/download_statsbomb.py  (fetch raw StatsBomb Open Data into data/statsbomb/, gitignored)
+build_master_dataset.py  (FBref CSVs + StatsBomb events -> data/wc2022_players_master.csv)
+tests/test_statsbomb_parser.py  (35 parser tests, incl. locked P3 contract)
+data/statsbomb/       (gitignored raw JSON: events/, lineups/, matches/)
 ```
 
 Dependency direction is strictly one-way. No module imports from `app.py`. `charts.py` and `features.py` are importable without Streamlit runtime.
@@ -75,11 +87,13 @@ CSV replacement without restart serves stale data (filepath key doesn't change).
 
 ## Dataset
 
-**⚠️ Provisional — not yet final.** The current dataset is a work-in-progress source for development and pipeline validation, not the final production dataset.
+Two datasets coexist, one per app version:
 
-`data/players_data_light-2025_2026.csv` — 2,839 rows × 53 columns, Big 5 European leagues (2025/26). After Min≥270 filter: 2,183 rows, ~155 GK, ~2,028 outfield (GK count drops from 194 to 155 because GKs tend to accrue fewer minutes than outfield players). FBref export shape with comma-flattened multi-index headers. GK-only stats (Saves, Save%, GA, CS, etc.) are empty for outfield rows.
+**v1 legacy** — `data/players_data_light-2025_2026.csv`: 2,839 rows × 53 columns, Big 5 European leagues (2025/26). After Min≥270 filter: 2,183 rows, ~155 GK, ~2,028 outfield (GK count drops from 194 to 155 because GKs tend to accrue fewer minutes than outfield players). FBref export shape with comma-flattened multi-index headers. GK-only stats (Saves, Save%, GA, CS, etc.) are empty for outfield rows.
 
-Additional test/scratch CSVs (`wc2022_*.csv`) exist in the data directory but are not consumed by the app — they may hold raw data for the eventual final dataset.
+**v2 rebuild** — `data/wc2022_players_master.csv`: 217 rows × 167 columns (146 pre-P3 + 21 P3 event-derived), FIFA World Cup 2022 (StatsBomb competition 43 / season 106). Built by `build_master_dataset.py` from FBref CSVs + StatsBomb events; 217 eligible players after Min≥270 filter. **P3 complete** — 21 locked event-derived features (pressures, recoveries, touches by zone, GK metrics, etc.) merged in at commit `7ccb424`. Raw StatsBomb Open Data lives in `data/statsbomb/` (gitignored; reproducible via `scripts/download_statsbomb.py`).
+
+Source FBref CSVs (`wc2022_standard.csv`, `wc2022_shooting.csv`, `wc2022_miscellaneous.csv`, `wc2022_gk.csv`) remain in `data/` as inputs to the v2 build.
 
 ## Mandatory Pre-Read (per DEVELOPMENT_WORKFLOW.md)
 
@@ -139,6 +153,13 @@ The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /d
 ## Changelog (Session Chronicle)
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
+
+### 2026-08-07 — P3 complete: StatsBomb event parser (commit 7ccb424)
+- **P3 RESOLVED:** 21 locked event-derived features from StatsBomb Open Data, merged into `data/wc2022_players_master.csv` (217 rows × 167 cols). Contract locked in `tests/test_statsbomb_parser.py::TestContract`. See `PROJECT_STATE.md` v2 roadmap.
+- **New modules:** `statsbomb_parser.py` (pure parser, no FBref import), `scripts/download_statsbomb.py` (raw fetch → `data/statsbomb/`, gitignored), `build_master_dataset.py` (FBref+StatsBomb merge; `merge_statsbomb_event_features` now starts with `reset_index(drop=True)` — positional-safety fix for a latent IndexError).
+- **Only 3 authorized heuristics:** `goals_prevented_p90` (sums linked-shot `statsbomb_xg`), `reflex_saves_p90` (GK "Shot Saved" from ≤5.5 yd), `cross_accuracy_pct` (completed/attempted cross ratio). Everything else counted directly from event schema.
+- **GK gating:** 7 GK-scoped features zero-filled for non-GKs in the merge (`pos_n == "GK"`).
+- **Docs updated:** CLAUDE.md (this entry), `ARCHITECTURE.md` (repo tree, purpose table, new §11), `TASK_BACKLOG.md`, `PROJECT_STATE.md` (P1–P5 roadmap status).
 
 ### 2026-07-28 — CLAUDE.md audit: commands, architecture, traps, dataset status
 - **Commands:** Added `ruff check .`, `model_engine.py --persist`/`--evaluate`
