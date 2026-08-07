@@ -29,6 +29,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import statsbomb_parser
+
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # ---------------------------------------------------------------------------
@@ -528,6 +530,175 @@ def filter_minutes(df, min_90s=3.0):
 
 
 # ---------------------------------------------------------------------------
+# P3: StatsBomb event-derived features (locked 21-column contract)
+#
+# statsbomb_parser.py produces per-player RAW event aggregates. This section
+# bridges them onto the master frame (after player_sb is set, before the
+# existing per-90 conversion) and computes the 21 locked per-90 columns.
+# ---------------------------------------------------------------------------
+P3_MASTER_COLUMNS = (
+    "pressures_p90",
+    "pressures_final_third_p90",
+    "pressures_mid_third_p90",
+    "claims_p90",
+    "sweeper_clearances_p90",
+    "headed_clearances_p90",
+    "recoveries_p90",
+    "passes_received_p90",
+    "one_touch_finishes_p90",
+    "launch_passes_p90",
+    "def_actions_outside_box_p90",
+    "avg_def_position_y",
+    "touches_wide_p90",
+    "touches_halfspace_p90",
+    "touches_6yard_box_p90",
+    "final_third_entries_p90",
+    "carries_into_box_p90",
+    "goals_prevented_p90",
+    "reflex_saves_p90",
+    "cross_accuracy_pct",
+    "headers_p90",
+)
+
+# parser raw count column -> master per-90 column
+_P3_COUNT_MAP = {
+    "pressures": "pressures_p90",
+    "pressures_final_third": "pressures_final_third_p90",
+    "pressures_mid_third": "pressures_mid_third_p90",
+    "claims": "claims_p90",
+    "sweeper_clearances": "sweeper_clearances_p90",
+    "headed_clearances": "headed_clearances_p90",
+    "recoveries": "recoveries_p90",
+    "passes_received": "passes_received_p90",
+    "one_touch_finishes": "one_touch_finishes_p90",
+    "launch_passes": "launch_passes_p90",
+    "def_actions_outside_box": "def_actions_outside_box_p90",
+    "touches_wide": "touches_wide_p90",
+    "touches_halfspace": "touches_halfspace_p90",
+    "touches_6yard_box": "touches_6yard_box_p90",
+    "final_third_entries": "final_third_entries_p90",
+    "carries_into_box": "carries_into_box_p90",
+    "reflex_saves": "reflex_saves_p90",
+    "headers": "headers_p90",
+}
+
+# GK-scoped features: zero-filled for non-GKs after the join.
+_P3_GK_COLUMNS = (
+    "claims_p90",
+    "sweeper_clearances_p90",
+    "launch_passes_p90",
+    "def_actions_outside_box_p90",
+    "avg_def_position_y",
+    "goals_prevented_p90",
+    "reflex_saves_p90",
+)
+
+
+def merge_statsbomb_event_features(master, sb_events):
+    """Attach the 21 StatsBomb event-derived features to ``master``.
+
+    Runs AFTER ``match_fbref_to_sb`` has set ``player_sb`` and BEFORE
+    ``compute_per90_from_fbref``. ``sb_events`` is the raw per-player
+    aggregate frame from ``statsbomb_parser.parse_competition``.
+
+    Identity bridge (locked contract; the closed matcher is untouched):
+        StatsBomb event player_id -> event player.name -> normalize_name()
+        -> master player_sb -> master row
+    Squad (``normalize_squad(event team) == master.squad_n``) disambiguates
+    same-name players. One data quirk: player_id 4354 (Phil/Philip Foden)
+    carries two name forms in the raw events; both resolve to the same
+    player_id, and only "Phil Foden" is a master ``player_sb``, so the
+    player_id -> master-row mapping stays unique.
+
+    Normalisation follows the repo's established per-90 convention
+    ``count / FBref 90s`` (the ``90s`` column is minutes/90, so count/90s is
+    a per-90 rate). Exceptions: ``avg_def_position_y`` is a mean and
+    ``cross_accuracy_pct`` is a ratio — neither is divided by 90s. The 7
+    GK-scoped features are zero-filled for non-GKs (FBref ``pos_n`` gate),
+    and missing event activity becomes 0 only here, after the join.
+    """
+    # Positional safety: ``resolved`` and ``master.at`` assume a 0..n-1 index,
+    # but callers may pass a frame whose index survived boolean filtering
+    # (e.g. filter_minutes on the full 680-row master keeps labels 0..679).
+    master = master.reset_index(drop=True)
+
+    # normalized name -> (player_id, {normalized team names})
+    lookup = {}
+    for _, r in sb_events.iterrows():
+        pid = int(r["player_id"])
+        teams = {normalize_squad(t) for t in str(r["teams"]).split(";") if t}
+        for variant in str(r["name_variants"]).split(";"):
+            variant = variant.strip()
+            if variant:
+                lookup.setdefault(normalize_name(variant), (pid, teams))
+
+    pid_to_row = {}
+    resolved = np.full(len(master), np.nan)
+    for idx, r in master.iterrows():
+        sb_name = r.get("player_sb")
+        if pd.isna(sb_name):
+            continue
+        entry = lookup.get(normalize_name(sb_name))
+        if entry is None:
+            continue  # no event activity for this name; row stays zero
+        pid, teams = entry
+        if r["squad_n"] not in teams:
+            raise AssertionError(
+                f"StatsBomb squad mismatch for master {r['player']!r} "
+                f"(player_sb={sb_name!r}): event team(s) {sorted(teams)} "
+                f"vs master squad {r['squad_n']!r}")
+        if pid in pid_to_row:
+            raise AssertionError(
+                f"StatsBomb player_id {pid} ({sb_name!r}) attaches to more "
+                f"than one master row")
+        pid_to_row[pid] = idx
+        resolved[idx] = pid
+
+    agg = sb_events.set_index("player_id")
+    nineties = master["90s"].replace(0, np.nan)
+
+    # Baseline zeros for every row; real values only from joined events.
+    for col in P3_MASTER_COLUMNS:
+        master[col] = 0.0
+
+    for idx in np.flatnonzero(np.isfinite(resolved)):
+        pid = int(resolved[idx])
+        if pid not in agg.index:
+            continue
+        rec = agg.loc[pid]
+        n90 = nineties.iloc[idx]
+        for raw_col, master_col in _P3_COUNT_MAP.items():
+            master.at[idx, master_col] = float(rec[raw_col]) / n90
+        master.at[idx, "goals_prevented_p90"] = (
+            float(rec["goals_prevented_raw"]) / n90)
+        master.at[idx, "avg_def_position_y"] = rec["avg_def_y"]  # mean
+        attempts = float(rec["cross_attempted"])
+        if attempts:
+            master.at[idx, "cross_accuracy_pct"] = (
+                float(rec["cross_completed"]) / attempts)
+
+    # GK scoping: non-GKs get 0 for the 7 GK features (FBref pos_n is the
+    # authoritative position gate).
+    is_gk = master["pos_n"].astype(str).str.upper() == "GK"
+    for col in _P3_GK_COLUMNS:
+        master.loc[~is_gk, col] = 0.0
+
+    # Collapse remaining NaN (avg_def_y for GKs with no located events,
+    # per-90 for zero-minute rows, cross accuracy for non-crossers).
+    master[list(P3_MASTER_COLUMNS)] = (
+        master[list(P3_MASTER_COLUMNS)].fillna(0.0))
+
+    # No event-derived feature may attach to an unmatched master player.
+    unmatched = master["player_sb"].isna()
+    if unmatched.any():
+        for col in P3_MASTER_COLUMNS:
+            assert (master.loc[unmatched, col] == 0).all(), (
+                f"P3 feature {col} attached to an unmatched master player")
+
+    return master
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main():
@@ -619,6 +790,15 @@ def main():
     else:
         print("\n  No double-matches: every SB row claimed by exactly one FBref player.")
 
+    # ---- P3: StatsBomb event-derived features (locked 21-column contract) ----
+    print("\nParsing StatsBomb events -> per-player raw aggregates...")
+    sb_events = statsbomb_parser.parse_competition(DATA_DIR / "statsbomb")
+    print(f"  {len(sb_events)} StatsBomb players with event activity")
+    print("Merging StatsBomb event features...")
+    master = merge_statsbomb_event_features(master, sb_events)
+    assert len(master) == 680, f"P3 merge changed row count to {len(master)}"
+    print(f"  + {len(P3_MASTER_COLUMNS)} event-derived columns attached")
+
     # ---- Assemble + write output ----
     print("\nComputing per-90 rates...")
     master = compute_per90_from_fbref(master)
@@ -629,13 +809,21 @@ def main():
     print("Filtering min 270 minutes (90s>=3.0)...")
     master = filter_minutes(master, min_90s=3.0)
     print(f"  After filter: {len(master)} rows")
+    assert len(master) == 217, f"Expected 217 eligible players, got {len(master)}"
 
     output_path = DATA_DIR / "wc2022_players_master.csv"
     master.to_csv(output_path, index=False)
     print(f"\nSaved: {output_path} ({len(master)} rows x {len(master.columns)} cols)")
 
+    # P3 verification: exactly 21 event-derived columns, no duplicates.
+    p3_present = [c for c in P3_MASTER_COLUMNS if c in master.columns]
+    assert len(p3_present) == len(P3_MASTER_COLUMNS), (
+        f"Missing P3 columns: {set(P3_MASTER_COLUMNS) - set(p3_present)}")
+    assert len(set(p3_present)) == len(p3_present), "Duplicate P3 columns"
+    print(f"P3 StatsBomb event-derived columns: {len(p3_present)} present "
+          f"(of {len(P3_MASTER_COLUMNS)}), {len(master.columns)} total columns")
+
     # Final summary
-    sb_cols = [c for c in master.columns if c.endswith("_sb") and not c.endswith("p90_sb")]
     print(f"\nFinal dataset: {len(master)} rows x {len(master.columns)} columns")
     el_m = master["player_sb"].notna().sum()
     print(f"StatsBomb matches (eligible cohort): {el_m}/{len(master)} ({el_m / len(master):.1%})")
