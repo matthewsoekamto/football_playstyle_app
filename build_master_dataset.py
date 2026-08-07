@@ -381,7 +381,6 @@ _STAGES = [
 
 def _verify_nickname_map(sb_df):
     """Fail loudly if any nickname-map target is missing from the export."""
-    lookup = {(r["squad_n"], r["player"]) for _, r in sb_df.iterrows()}
     by_name = sb_df.set_index("player")["squad_n"].to_dict()
     missing = []
     for fb_key, sb_target in NICKNAME_MAP.items():
@@ -727,13 +726,13 @@ def main():
     missing_from_export = unmatched[~has_sb_row]
     matcher_gaps = unmatched[has_sb_row]
 
-    print(f"\n=== MATCH RATES ===")
+    print("\n=== MATCH RATES ===")
     print(f"  Overall (all {total} FBref):  {matched}/{total} ({matched / total:.1%})")
     print(f"    -> unmatched without any SB row (below export 90-min floor): {len(missing_from_export)}")
     print(f"    -> unmatched WITH an SB row (matcher gap): {len(matcher_gaps)}")
 
     stage_counts = master["match_stage"].value_counts()
-    print(f"\n  Match stages: " + ", ".join(f"{k}={v}" for k, v in stage_counts.items()))
+    print("\n  Match stages: " + ", ".join(f"{k}={v}" for k, v in stage_counts.items()))
 
     # ---- Eligible cohort (90s >= 3.0, the actual dataset) ----
     eligible = filter_minutes(master, min_90s=3.0)
