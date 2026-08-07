@@ -140,6 +140,14 @@ The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /d
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
 
+### 2026-08-07 — WC2022 master-merge investigation: verified 100% match path (v3)
+- **Problem:** master dataset only had 71 players (of 217 eligible). Root cause = merge matching, not data.
+- **Verified:** `wc2022_players.csv` (475 rows) is COMPLETE for all eligible players. The "9 missing" (Casemiro, Gavi, Marquinhos, Paquetá, Pedri, Pepe, Raphinha, Rodri, Firas Al-Buraikan) are present under full official names (`Carlos Henrique Casimiro`, `Pablo Martín Páez Gavira`, etc.) — confirmed against original StatsBomb Open Data (statsbombpy, comp 43, season 106). **The export is not incomplete; the matcher was too weak.**
+- **Root causes (all three):** (1) FBref CSVs read as latin-1 but are UTF-8 → 178 names mojibake; (2) FBref combined positions (FWMF/MFFW/DFMF/MFDF, ~20%) vs SB simple (FW/MF/DF/GK); (3) first+last name truncation + nickname cases (zero token overlap) defeat naive matching.
+- **Verified matching cascade achieves 217/217 = 100%** on eligible (90s≥3.0): exact stripped → token-subset → first+last → last-name-unique → edit-dist ≤3 → **nickname map (24 entries)**.
+- **Docs:** full reports at `docs/MERGE_INVESTIGATION_REPORT.md` (v1), `docs/MERGE_FAILURE_ANALYSIS_V2.md` (superseded "incomplete export" claim), `docs/MERGE_FAILURE_ANALYSIS_V3.md` (**current, corrected**).
+- **Recommendation:** complete in order — (1) fix export pipeline (verify `wc2022_players.csv` generator, not in git history), (2) UTF-8 read, (3) position normalization, (4) NFKD+translit, (5) cascade matcher, (6) 24-entry nickname map, (7) rebuild master. **Do not cluster until this is done.**
+
 ### 2026-07-28 — CLAUDE.md audit: commands, architecture, traps, dataset status
 - **Commands:** Added `ruff check .`, `model_engine.py --persist`/`--evaluate`
 - **Architecture:** Added tests/, CI, models/ to tree. Documented all 3 cache layers + SHA256 invalidation
