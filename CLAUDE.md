@@ -55,7 +55,7 @@ scripts/download_statsbomb.py  (fetch raw StatsBomb Open Data into data/statsbom
 build_master_dataset.py  (FBref CSVs + StatsBomb events -> data/wc2022_players_master.csv; merge_position_v2)
 v2_model_engine.py    (headless engine: per-position_v2 KMeans, 20 σ-offset archetype labels, models_v2/ persistence)
 tests/test_statsbomb_parser.py  (52 parser tests, incl. locked P3+P6 contracts + position_v2)
-tests/test_v2_model_engine.py   (16 engine tests: determinism, provenance, persistence roundtrip, no-streamlit import)
+tests/test_v2_model_engine.py   (17 engine tests: determinism, provenance, persistence roundtrip, no-streamlit import)
 models_v2/            (gitignored: v2 per-group scalers/KMeans, cluster_labels_v2.json, metadata_v2.json)
 data/statsbomb/       (gitignored raw JSON: events/, lineups/, matches/)
 ```
@@ -103,6 +103,14 @@ Two datasets coexist, one per app version:
 **v2 engine (P7)** — `v2_model_engine.py` clusters the master by `position_v2` group (k=2/3/3/5/3/4) and labels each cluster against the **20 σ-offset archetypes** (traits as σ-above-group-mean, converted to raw units via the player-level scaler). Persists to `models_v2/` (gitignored), invalidated by SHA256 of the CSV. `python v2_model_engine.py --persist` fits+saves; `--evaluate` fits+logs per-group silhouette/DB + label distribution.
 
 Source FBref CSVs (`wc2022_standard.csv`, `wc2022_shooting.csv`, `wc2022_miscellaneous.csv`, `wc2022_gk.csv`) remain in `data/` as inputs to the v2 build.
+
+## Current Status (v2) — 2026-08-12
+
+**Phase B is complete but NOT merged.** All v2 ML work (P6 position-scoped features + `position_v2`, P7 position-scoped KMeans engine, GK fallback-label rename) lives on branch **`statsbomb-parser`**, **4 commits ahead of `main`** (`18ebbd5` spec 19–20 · `8ec9b68` P6 · `eecb0b3` P7 · `6d0c564` GK label rename). Committed + pushed to `origin/statsbomb-parser`; **nothing merged to `main` yet — merging requires explicit owner approval** (ff-merge pattern; never force-push).
+
+- **Engine output (217 players):** GK = Shot Stopper 10 · Traditional Goalkeeper 18 · CB = Ball-Playing 23 / Traditional 21 / Stopper 15 · FB/WB = Attacking 25 / Defensive 11 · MF = Deep-Lying 32 / Defensive Mid 21 / Shadow Striker 1 / Mixed 1 · Wide = Inverted 9 / Traditional 9 / Wide Playmaker 3 · ST = Complete Forward 9 / False 9 5 / Target Man 4. Reproduce with `python v2_model_engine.py --evaluate`.
+- **Next actions (in order):** ① merge → `main` (owner approval) → ② **P8** evaluation (bootstrap stability) → ③ **P9** visualization + wire into `app.py`. Tracked in `TASK_BACKLOG.md` (V2-MERGE / P8 / P9); full state in `docs/PROJECT_STATE.md`.
+- **Persistence caveat:** v2 model artifacts invalidate on dataset-hash change only — a code change (labels/archetypes) silently serves stale labels on `--persist`; clear `models_v2/` and re-run `--persist` when the code changes.
 
 ## Mandatory Pre-Read (per DEVELOPMENT_WORKFLOW.md)
 

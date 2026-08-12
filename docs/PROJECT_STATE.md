@@ -74,7 +74,13 @@ Core principles:
 
 One KMeans per position group is fit on the P6 master, clusters labeled against the 20 σ-offset archetypes, and the fitted scalers/centroids/labels persisted to `models_v2/` (SHA256-invalidated). `v2_model_engine.py` is headless (no streamlit import).
 
-**P1–P7 (data pipeline + feature engineering + clustering) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` landed on branch `statsbomb-parser`; the P7 engine landed at the P7 commit on the same branch. `data/wc2022_players_master.csv` is 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`). Remaining: P8–P9 (evaluation, visualization).
+**P1–P7 (data pipeline + feature engineering + clustering) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` landed on branch `statsbomb-parser`; the P7 engine + GK label rename landed on the same branch. `data/wc2022_players_master.csv` is 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`). Remaining: **merge to main, then P8–P9** (evaluation, visualization).
+
+### Branch / merge status
+
+- **All Phase B work lives on branch `statsbomb-parser`, 4 commits ahead of `main` (main at `47a45d7`):** `18ebbd5` (spec 19–20) · `8ec9b68` (P6) · `eecb0b3` (P7) · `6d0c564` (GK label rename). Committed + pushed to `origin/statsbomb-parser`; **not merged to `main`**.
+- **Next action = merge `statsbomb-parser` → `main` (requires owner approval; established ff-merge pattern, never force-push).** See `TASK_BACKLOG.md` → V2-MERGE.
+- After merge: **P8** (v2 evaluation: bootstrap stability) → **P9** (v2 visualization + wire into `app.py`).
 
 ### Goal
 
@@ -159,17 +165,12 @@ FBref Loader                StatsBomb Parser
 #### Data — ✅ DONE (P1–P6)
 P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), StatsBomb parser (`7ccb424`), player matching, and merge into `data/wc2022_players_master.csv`. P6 complete (branch `statsbomb-parser`): 23 more event-derived features + `position_v2` (most-played StatsBomb lineup position → GK/CB/FB-WB/MF/Wide/ST) → master 217 rows × 192 cols. **position_v2 distribution: GK=28, CB=59, FB/WB=36, MF=55, Wide=21, ST=18** (all 217 resolve; every group ≥ its k).
 
-#### ML
-| Priority | Task | Effort |
-|---|---|---|
-| ~~**P6**~~ | ~~Feature engineering (position-scoped)~~ — ✅ DONE | — |
-| ~~**P7**~~ | ~~Cluster redesign (position-scoped KMeans, `v2_model_engine.py`)~~ — ✅ DONE | ~3 days |
-
-#### Application
-| Priority | Task | Effort |
-|---|---|---|
-| **P8** | Evaluation (silhouette, DB, stability) | ~1 day |
-| **P9** | Visualization updates | ~2 days |
+#### Next (in order)
+| Priority | Task | Effort | Where |
+|---|---|---|---|
+| **⏸️ Blocked** | Merge `statsbomb-parser` → `main` (**owner approval required**; 4 commits ahead) | — | `TASK_BACKLOG.md` V2-MERGE |
+| **P8** | Evaluation (silhouette, DB, **bootstrap stability**) on the v2 engine | ~1 day | `TASK_BACKLOG.md` P8 |
+| **P9** | Visualization updates + wire v2 clustering into `app.py` | ~2 days | `TASK_BACKLOG.md` P9 |
 
 ---
 

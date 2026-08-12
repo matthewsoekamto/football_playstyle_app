@@ -48,8 +48,21 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 
 ### V2-ML: Position-scoped KMeans engine (P7) — ✅ RESOLVED
 - **Status:** RESOLVED (2026-08-12, branch `statsbomb-parser`). `v2_model_engine.py` is a headless engine that fits one KMeans per `position_v2` group (k = 2/3/3/5/3/4, seed 42) on the P6 master and labels each cluster against the **20 archetypes** encoded as **σ-offset profiles** (traits stored as σ-above-group-mean, converted to raw units via the player-level scaler — fixes the raw-unit vectors that were 2–40σ off real centroids and produced 100% "Mixed Profile" on the first fit). Dimension-aware label threshold `3.5·√(n/6)` preserves v1 semantics. Persistence to `models_v2/` (per-group scaler/kmeans joblib, `cluster_labels_v2.json`, `metadata_v2.json` with dataset SHA256); `_artifact_stem` sanitizes the `FB/WB` slash so `--persist` writes into real files. CLI `--persist` / `--evaluate`; both verified end-to-end (cache reload reproduces fresh-fit labels exactly). See `ARCHITECTURE.md` §11.
-- **Tests:** 16 engine tests in `tests/test_v2_model_engine.py` (constant structure, determinism, all-rows-labeled, label provenance, small-group guard, unknown-position exclusion, persistence roundtrip, hash-mismatch invalidation, no-streamlit import graph, real-master feature availability/data fixes/non-degenerate labels).
+- **Tests:** 17 engine tests in `tests/test_v2_model_engine.py` (constant structure, determinism, all-rows-labeled, label provenance, small-group guard, unknown-position exclusion, persistence roundtrip, hash-mismatch invalidation, no-streamlit import graph, real-master feature availability/data fixes/non-degenerate labels, GK-fallback label).
 - **Review gate (owner decision — RESOLVED):** first `--evaluate` flagged GK (18/28 "Mixed Profile") — root-caused as a genuinely quiet GK cluster, not a calibration failure. Owner decided "Mixed Profile" is not acceptable as a dominant user-facing output and renamed the **GK fallback to "Traditional Goalkeeper"** (verified: the quiet cluster is the stay-at-home keeper — below-mean on saves and every sweeping/distribution trait). Now GK = Shot Stopper 10 · Traditional Goalkeeper 18; other groups keep "Mixed Profile" for their rare outliers (MF 1).
+
+### V2-MERGE: Merge `statsbomb-parser` → `main` — ⏸️ WAITING ON OWNER APPROVAL
+- **Status:** **NEXT ACTION — blocked on owner approval.** Branch `statsbomb-parser` is **4 commits ahead of main** (main at `47a45d7`): `18ebbd5` (spec 19–20), `8ec9b68` (P6), `eecb0b3` (P7), `6d0c564` (GK label rename). All Phase B work is committed + pushed to `origin/statsbomb-parser`; **nothing has been merged to `main` yet**. Do not merge without explicit owner sign-off (established ff-merge pattern; never force-push).
+- **Once merged, validate on main:** `python -m pytest tests/ -q` (105 expected), `ruff check .`, `python v2_model_engine.py --evaluate` reproduces the label distribution (GK = Shot Stopper 10 · Traditional Goalkeeper 18).
+
+### P8: v2 clustering evaluation (silhouette, DB, stability/bootstrap)
+- **Priority:** Medium | **Effort:** ~1 day
+- **Status:** Pending (next engineering task after merge). Add per-group bootstrap stability / refit-variance to `v2_model_engine.py --evaluate` (silhouette/DB already logged per group). Low silhouette on ST/Wide (18–21 players × 23–34 dims) is expected per `ARCHITECTURE.md` §11 risks — the goal is stability evidence, not higher scores.
+- **Files affected:** `v2_model_engine.py` (+ tests).
+
+### P9: v2 visualization + wire into `app.py`
+- **Priority:** Medium | **Effort:** ~2 days
+- **Status:** Pending. Bring the v2 clustered output into the Streamlit app: position-aware radar/playstyle explorer against the 20 archetypes, H2H, distribution. This is the first v2 module to enter the v1 app's import graph (headless constraint applies to the engine only). See `ARCHITECTURE.md` §11 and `STREAMLIT_GUIDELINES.md`.
 
 ### DATA-01: Integrate possession/passing stats into the pipeline
 - **Priority:** Medium | **Difficulty:** High | **Impact:** High (materially richer playstyle signal) | **Effort:** ~3-5 days
