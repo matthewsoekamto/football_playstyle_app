@@ -8,7 +8,7 @@
 
 ## Feature Inventory (from PLAYSTYLE_SPEC.md)
 
-62 unique features referenced across 18 archetypes.
+62 unique features referenced across 20 archetypes.
 
 ---
 

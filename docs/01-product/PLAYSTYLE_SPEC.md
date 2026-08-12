@@ -409,3 +409,52 @@ Not Important
 - prog_passes_p90
 - pressures_final_third_p90
 - xG_per_shot (low, headed xG is low)
+
+---
+19. Complete Forward
+
+Important
+- gls_p90
+- xG_p90
+- shots_p90
+- npxG_per_shot
+- shot_creating_actions_p90
+- key_passes_p90
+- prog_carries_p90
+- passes_received_p90
+- box_touches_p90
+- aerial_duels_won_p90
+
+Not Important
+- conversion_pct
+- touches_6yard_box_p90
+- dribbles_p90
+- through_balls_p90
+- cross_accuracy_pct
+- pressures_final_third_p90
+- long_passes_p90
+
+---
+20. False 9
+
+Important
+- touches_halfspace_p90
+- passes_received_p90
+- key_passes_p90
+- shot_creating_actions_p90
+- ast_p90 / xA_p90
+- prog_passes_p90
+- passes_into_box_p90
+- through_balls_p90
+- dribbles_p90
+- xG_p90
+
+Not Important
+- box_touches_p90
+- touches_6yard_box_p90
+- gls_p90
+- headers_p90
+- headed_goals_p90
+- aerial_duels_won_p90
+- conversion_pct
+- long_passes_p90
