@@ -56,6 +56,22 @@ N_INIT = 10
 LABEL_THRESHOLD = 3.5
 V1_FEATURE_SPAN = 6.0
 
+# Fallback label for a cluster whose nearest archetype is beyond the threshold — the
+# honest "no clean match", never forcing a misleading archetype name. Per-group because
+# the WC 2022 GK pool is genuinely homogeneous: 18/28 GKs land here, and "Mixed Profile"
+# was a poor user-facing output for 64% of a position group. The quiet keepers are
+# better described as "Traditional Goalkeeper" (verified: below-mean on saves and on every
+# sweeping/distribution trait, deeper line — the stay-at-home keeper). Other groups have
+# at most 1-2 such players and keep the honest "Mixed Profile".
+GROUP_FALLBACK_LABEL = {
+    "GK": "Traditional Goalkeeper",
+    "CB": "Mixed Profile",
+    "FB/WB": "Mixed Profile",
+    "MF": "Mixed Profile",
+    "Wide": "Mixed Profile",
+    "ST": "Mixed Profile",
+}
+
 DATASET_PATH = "data/wc2022_players_master.csv"
 
 GROUP_ORDER = ["GK", "CB", "FB/WB", "MF", "Wide", "ST"]
@@ -304,13 +320,14 @@ def _label_threshold(n_features):
     return LABEL_THRESHOLD * np.sqrt(n_features / V1_FEATURE_SPAN)
 
 
-def _assign_labels_from_archetypes(centroids, archetypes, feature_cols, scaler=None, threshold=3.5):
+def _assign_labels_from_archetypes(centroids, archetypes, feature_cols, scaler=None, threshold=3.5, fallback_label="Mixed Profile"):
     """Assign each cluster its true nearest archetype by Euclidean distance.
 
     Unlike the previous greedy-with-deduplication approach, this version lets
     multiple clusters share a label if that's genuinely their closest archetype.
     If no archetype is within ``threshold`` standardized units, the cluster is
-    labelled "Mixed Profile" instead of forcing a misleading name.
+    labelled ``fallback_label`` (default "Mixed Profile") instead of forcing a
+    misleading name — per-group overrides live in ``GROUP_FALLBACK_LABEL``.
 
     When ``scaler`` is provided (the player-level StandardScaler from
     ``group_players``), it is used to transform both centroids and archetypes
@@ -340,7 +357,7 @@ def _assign_labels_from_archetypes(centroids, archetypes, feature_cols, scaler=N
         if best_dist <= threshold:
             labels[cluster_id] = archetype_names[best_idx]
         else:
-            labels[cluster_id] = "Mixed Profile"
+            labels[cluster_id] = fallback_label
 
     return labels
 
@@ -406,6 +423,7 @@ def _fit_group(gdf, group, evaluate=False):
         features,
         scaler=scaler,
         threshold=_label_threshold(len(features)),
+        fallback_label=GROUP_FALLBACK_LABEL.get(group, "Mixed Profile"),
     )
     gdf["playstyle_cluster_v2"] = gdf["cluster_id_v2"].map(labels)
 

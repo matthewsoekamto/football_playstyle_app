@@ -73,6 +73,14 @@ def test_archetype_values_are_sigma_offsets():
                 assert -0.01 <= sigma <= 3.5, (group, name, feat, sigma)
 
 
+def test_gk_fallback_label_is_traditional_goalkeeper():
+    """Review-gate decision: the homogeneous GK pool's fallback is 'Traditional Goalkeeper';
+    other groups keep the honest 'Mixed Profile' for their rare outliers."""
+    assert ve.GROUP_FALLBACK_LABEL["GK"] == "Traditional Goalkeeper"
+    for group in ("CB", "FB/WB", "MF", "Wide", "ST"):
+        assert ve.GROUP_FALLBACK_LABEL[group] == "Mixed Profile"
+
+
 # --- clustering behaviour (synthetic) --------------------------------------
 
 def test_determinism():
@@ -93,11 +101,11 @@ def test_all_rows_labeled():
 
 
 def test_label_provenance():
-    """Labels come from the group's archetypes or the honest 'Mixed Profile' fallback."""
+    """Labels come from the group's archetypes or the group's honest fallback label."""
     df = ve.group_and_cluster(_engine_frame())
     for group in ve.GROUP_ORDER:
         g = df[df["position_v2"] == group]
-        allowed = set(ve.GROUP_ARCHETYPES[group]) | {"Mixed Profile"}
+        allowed = set(ve.GROUP_ARCHETYPES[group]) | {ve.GROUP_FALLBACK_LABEL[group]}
         assert set(g["playstyle_cluster_v2"].unique()) <= allowed, group
 
 
