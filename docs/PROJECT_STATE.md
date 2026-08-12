@@ -23,9 +23,9 @@ Core principles:
 
 | Document | Purpose |
 |---|---|
-| `PLAYSTYLE_SPEC.md` | Canonical definition of all 20 archetypes |
-| `FEATURE_VALIDATION.md` | Validation of every feature against StatsBomb Open Data |
-| `DATA_SOURCE_MAPPING.md` | Defines the canonical source of every feature (FBref vs StatsBomb) |
+| `01-product/PLAYSTYLE_SPEC.md` | Canonical definition of all 20 archetypes |
+| `01-product/FEATURE_VALIDATION.md` | Validation of every feature against StatsBomb Open Data |
+| `01-product/DATA_SOURCE_MAPPING.md` | Defines the canonical source of every feature (FBref vs StatsBomb) |
 
 ---
 
@@ -135,9 +135,9 @@ FBref Loader                StatsBomb Parser
 
 | Item | Description |
 |---|---|
-| **PLAYSTYLE_SPEC.md** | Canonical 20-archetype definitions |
-| **FEATURE_VALIDATION.md** | Feature-by-feature validation against StatsBomb Open Data |
-| **DATA_SOURCE_MAPPING.md** | Canonical source assignment for every feature (FBref vs StatsBomb) |
+| **01-product/PLAYSTYLE_SPEC.md** | Canonical 20-archetype definitions |
+| **01-product/FEATURE_VALIDATION.md** | Feature-by-feature validation against StatsBomb Open Data |
+| **01-product/DATA_SOURCE_MAPPING.md** | Canonical source assignment for every feature (FBref vs StatsBomb) |
 | **Project architecture defined** | Position-scoped clustering, hybrid sourcing, deterministic pipeline |
 | **P1–P2 (FBref schema + loader/merger)** | V3-corrected FBref build (`59ef406`) |
 | **P3 (StatsBomb parser)** | `statsbomb_parser.py` → 21 locked event-derived features (`7ccb424`); downloader `scripts/download_statsbomb.py` |
@@ -176,9 +176,9 @@ P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), Stats
 | Decision | Summary |
 |---|---|
 | **Position-scoped clustering** | One KMeans per position group (GK, CB, FB, CM, Wide, ST) — not global outfield/GK split |
-| **Hybrid feature sourcing** | Each feature assigned to FBref or StatsBomb as canonical source (`DATA_SOURCE_MAPPING.md`) |
+| **Hybrid feature sourcing** | Each feature assigned to FBref or StatsBomb as canonical source (`01-product/DATA_SOURCE_MAPPING.md`) |
 | **Event-derived metrics** | Progressive carries, pressures, pass types from StatsBomb events — not just summary tables |
-| **Archetype definitions first** | `PLAYSTYLE_SPEC.md` drives feature selection, not vice versa |
+| **Archetype definitions first** | `01-product/PLAYSTYLE_SPEC.md` drives feature selection, not vice versa |
 | **WC 2022 as dev dataset** | Single tournament, complete event data available via StatsBomb Open Data |
 
 ---

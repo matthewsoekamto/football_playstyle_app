@@ -115,7 +115,10 @@ docs/
 ├── 00-constitution/
 │   └── PROJECT_CONSTITUTION.md                 Highest authority: vision, rules, DoD
 ├── 01-product/
-│   └── PROJECT_SPEC.md                         Product purpose, users, capabilities
+│   ├── PROJECT_SPEC.md                         Product purpose, users, capabilities
+│   ├── PLAYSTYLE_SPEC.md                       v2: 20-archetype feature design specs
+│   ├── DATA_SOURCE_MAPPING.md                  v2: canonical FBref/StatsBomb source per feature
+│   └── FEATURE_VALIDATION.md                   v2: feature feasibility vs StatsBomb Open Data
 ├── 02-architecture/
 │   ├── ARCHITECTURE.md                         System structure, data flow, ML pipeline
 │   └── DECISIONS.md                            ADR log of real design decisions
@@ -153,6 +156,11 @@ The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /d
 ## Changelog (Session Chronicle)
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
+
+### 2026-08-12 — Phase A: v2 design docs committed, main test suite complete
+- **Committed:** `PLAYSTYLE_SPEC.md`, `DATA_SOURCE_MAPPING.md`, `FEATURE_VALIDATION.md` moved from untracked repo-root files into `docs/01-product/` (docs taxonomy). `PROJECT_STATE.md` references retargeted to `01-product/...`.
+- **Main checkout now self-sufficient:** `data/statsbomb/` downloaded there too → `pytest` runs 71/71 (no skip) in both checkouts.
+- **Left untouched:** pre-existing uncommitted working-tree deletions of `V1_READINESS_ASSESSMENT.md` and `docs/README.md` in the shared checkout — not part of this change.
 
 ### 2026-08-07 — P3 complete: StatsBomb event parser (commit 7ccb424)
 - **P3 RESOLVED:** 21 locked event-derived features from StatsBomb Open Data, merged into `data/wc2022_players_master.csv` (217 rows × 167 cols). Contract locked in `tests/test_statsbomb_parser.py::TestContract`. See `PROJECT_STATE.md` v2 roadmap.
