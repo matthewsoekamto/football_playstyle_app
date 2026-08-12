@@ -66,15 +66,15 @@ Core principles:
 
 ## v2 (Current Development)
 
-**Status:** Active — Phase 3: Position-Scoped Clustering (P7)
+**Status:** Active — Phase 4: Evaluation (P8) scheduled
 
 ### Current Phase
 
-**Phase 3 — Position-Scoped KMeans Engine (P7)**
+**Phase 3 — Position-Scoped KMeans Engine (P7) ✅ complete.**
 
-Current objective: Fit one KMeans per position group on the P6 master, label clusters against the 20 archetypes, and persist to `models_v2/`.
+One KMeans per position group is fit on the P6 master, clusters labeled against the 20 σ-offset archetypes, and the fitted scalers/centroids/labels persisted to `models_v2/` (SHA256-invalidated). `v2_model_engine.py` is headless (no streamlit import).
 
-**P1–P6 (data pipeline + P6 feature engineering) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` landed on branch `statsbomb-parser`. `data/wc2022_players_master.csv` is now 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`). Remaining: P7–P9 (position-scoped clustering, evaluation, visualization).
+**P1–P7 (data pipeline + feature engineering + clustering) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` landed on branch `statsbomb-parser`; the P7 engine landed at the P7 commit on the same branch. `data/wc2022_players_master.csv` is 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`). Remaining: P8–P9 (evaluation, visualization).
 
 ### Goal
 
@@ -144,6 +144,7 @@ FBref Loader                StatsBomb Parser
 | **P4 (player matching)** | FBref↔StatsBomb identity bridge (name+squad, `normalize_name`) in `build_master_dataset.py` |
 | **P5 (merge dataset)** | `data/wc2022_players_master.csv` — 217 rows × 167 cols |
 | **P6 (position-scoped features)** | 23 more event-derived features (passing, defending, duels, shots/xG/npxG, box/final-third touches, penalties) + `parse_lineups`/`position_v2` (6 groups from StatsBomb lineups) → master 217 × 192; data fixes (`conversion_pct` overflow, `dribble_success_pct`, dropped `pkwon`/`pkcon`) |
+| **P7 (position-scoped KMeans)** | `v2_model_engine.py` (headless): per-group KMeans (k=2/3/3/5/3/4), σ-offset archetype labeling vs the 20 archetypes, `models_v2/` persistence (SHA256-invalidated, `_artifact_stem` sanitizes the `FB/WB` group name). Engine tests in `tests/test_v2_model_engine.py` (16 tests) |
 
 ### Success Criteria (v2 Complete)
 
@@ -162,7 +163,7 @@ P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), Stats
 | Priority | Task | Effort |
 |---|---|---|
 | ~~**P6**~~ | ~~Feature engineering (position-scoped)~~ — ✅ DONE | — |
-| **P7** | Cluster redesign (position-scoped KMeans, `v2_model_engine.py`) | ~3 days |
+| ~~**P7**~~ | ~~Cluster redesign (position-scoped KMeans, `v2_model_engine.py`)~~ — ✅ DONE | ~3 days |
 
 #### Application
 | Priority | Task | Effort |
@@ -193,4 +194,4 @@ P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), Stats
 
 ---
 
-*Updated 2026-08-12: P1–P6 (data pipeline + position-scoped feature engineering) complete. Next update when P7–P9 land.*
+*Updated 2026-08-12: P1–P7 (data pipeline + position-scoped feature engineering + position-scoped KMeans) complete on branch `statsbomb-parser`. Next update when P8–P9 land.*

@@ -29,6 +29,7 @@ Thumbs.db
 
 # Model artifacts (generated at runtime)
 models/
+models_v2/
 
 # Raw StatsBomb Open Data (reproducible via scripts/download_statsbomb.py)
 data/statsbomb/

@@ -16,6 +16,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This document is the single
 ├── charts.py                       # Plotly figure builders (pure functions, no Streamlit calls)
 ├── statsbomb_parser.py             # v2: StatsBomb event parser → 44 event-derived features (P3+P6) + parse_lineups/position_v2
 ├── build_master_dataset.py         # v2: FBref + StatsBomb → data/wc2022_players_master.csv
+├── v2_model_engine.py              # v2: headless position-scoped KMeans engine (P7) → models_v2/
 ├── scripts/
 │   ├── download_statsbomb.py       # v2: fetch raw StatsBomb Open Data (gitignored target)
 │   └── check_dataset.py            # v2: dataset sanity checks
@@ -28,13 +29,17 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This document is the single
 │   ├── test_data_loader.py / test_model_engine.py / test_features.py / test_charts.py
 │   ├── test_statsbomb_parser.py    # 52 parser tests, incl. locked P3 contract + P6 + position_v2
 │   └── fixtures/statsbomb/events/match_fixture.json  # real-event parser fixture
-├── models/                         # Persisted ML artifacts (gitignored, created at runtime)
+├── models/                         # v1 Persisted ML artifacts (gitignored, created at runtime)
 │   ├── outfield_scaler.joblib
 │   ├── outfield_kmeans.joblib
 │   ├── gk_scaler.joblib
 │   ├── gk_kmeans.joblib
 │   ├── cluster_labels.json
 │   └── metadata.json
+├── models_v2/                      # v2 Persisted artifacts (gitignored, created by v2_model_engine --persist)
+│   ├── {GK,CB,FB_WB,MF,Wide,ST}_scaler.joblib / _kmeans.joblib
+│   ├── cluster_labels_v2.json
+│   └── metadata_v2.json
 ├── .github/workflows/ci.yml        # ruff check + pytest on push/PR to main
 ├── requirements.txt                # streamlit, pandas, scikit-learn, plotly, joblib
 ├── requirements-dev.txt            # pytest, ruff
@@ -43,7 +48,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. This document is the single
 
 There is **no `src/` package layout and no `config/` directory.** This is acceptable for the project's current size per `PROJECT_CONSTITUTION.md §11`. `tests/` and CI exist (see `TASK_BACKLOG.md` for backlog status).
 
-> **Two parallel pipelines.** The v1 five-module app (above the `statsbomb_parser.py` line) is archived/legacy. The **v2 data pipeline** (`statsbomb_parser.py`, `build_master_dataset.py`, `scripts/`) builds the WC 2022 hybrid dataset but is **not yet wired into `app.py`** — the v2 clustering engine (P7–P9) has not landed.
+> **Two parallel pipelines.** The v1 five-module app (above the `statsbomb_parser.py` line) is archived/legacy. The **v2 data pipeline** (`statsbomb_parser.py`, `build_master_dataset.py`, `scripts/`) builds the WC 2022 hybrid dataset, and the **v2 clustering engine** (`v2_model_engine.py`, P7) clusters it headlessly — but neither is **wired into `app.py`** yet (P8–P9 remain).
 
 ### Purpose of every file
 
@@ -56,9 +61,10 @@ There is **no `src/` package layout and no `config/` directory.** This is accept
 | `charts.py` | Pure Plotly figure builders — scatter, radar (H2H and playstyle), distribution bar | `features` (for `friendly_label`) | `app` |
 | `statsbomb_parser.py` | v2: `parse_events()`/`iter_match_events()`/`parse_competition()` — raw StatsBomb events → 44 event-derived features per player (21 P3 + 23 P6); `parse_lineups()` — duration-weighted most-played position per player (`position_v2`) | — (no project imports; pure parser) | `build_master_dataset` |
 | `build_master_dataset.py` | v2: FBref CSVs + StatsBomb features → `data/wc2022_players_master.csv`; `merge_statsbomb_event_features()`, `merge_position_v2()` | `statsbomb_parser` | — (CLI `__main__`) |
+| `v2_model_engine.py` | v2: headless position-scoped KMeans engine — per-group `group_and_cluster()`, σ-offset archetype labeling, `models_v2/` persistence (SHA256-invalidated), CLI `--persist`/`--evaluate` | — (no project imports; copies v1 pure helpers verbatim) | — (CLI) |
 | `scripts/download_statsbomb.py` | v2: fetch raw StatsBomb Open Data (competition 43 / season 106) into `data/statsbomb/` | — (no project imports) | — (CLI) |
 
-The **v2 modules** (`statsbomb_parser`, `build_master_dataset`) are deliberately not in the v1 app's import graph — the v2 rebuild lands as a separate engine (P7–P9). See §11.
+The **v2 modules** (`statsbomb_parser`, `build_master_dataset`, `v2_model_engine`) are deliberately not in the v1 app's import graph — the v2 rebuild runs headless, and only the visualization layer (P9) will bring it into `app.py`. See §11.
 
 ## 2. Module Dependency Graph
 
@@ -180,9 +186,9 @@ Because all three are keyed only on a constant string filepath, cache invalidati
 
 Removed during v1.0 cleanup. The file had been a standalone FBref scraper, deliberately disconnected from the app's import graph. If possession stats are revisited in v2, a new data-collection pipeline should follow the existing dataset pattern.
 
-## 11. v2 Data Pipeline (WC 2022 Rebuild, P1–P6 complete)
+## 11. v2 Data Pipeline + Engine (WC 2022 Rebuild, P1–P7 complete)
 
-The v2 pipeline builds `data/wc2022_players_master.csv` (217 rows × 192 cols) from hybrid FBref + StatsBomb sources. **P6 (position-scoped feature engineering + `position_v2`) is complete** on branch `statsbomb-parser`; P3 (event parser) landed at `7ccb424`; P1–P2 (FBref load/schema) and P4–P5 (player matching, merge) landed at `59ef406`.
+The v2 pipeline builds `data/wc2022_players_master.csv` (217 rows × 192 cols) from hybrid FBref + StatsBomb sources, and `v2_model_engine.py` clusters it by position group. **P6 (position-scoped feature engineering + `position_v2`) and P7 (position-scoped KMeans engine) are complete** on branch `statsbomb-parser`; P3 (event parser) landed at `7ccb424`; P1–P2 (FBref load/schema) and P4–P5 (player matching, merge) landed at `59ef406`.
 
 ```
 data/statsbomb/ (raw Open Data, gitignored)
@@ -199,6 +205,14 @@ build_master_dataset.py ── FBref CSVs ──► data/wc2022_players_master.c
 **P6 contract (additive, 23 columns):** passing (passes, progressive/long/key/through-ball/switches/into-final-third/into-box, completion), defending (clearances, blocks, aerial won, aerial duel %, duels won), shots (shots, xG, on-target, npxG-per-shot, headed goals), touches in box / final third, `shot_creating_actions_p90` (proxy = key passes), and GK-gated `penalty_save_pct`. All per-90 over FBref minutes unless raw. **Data fixes:** `conversion_pct` overflow guarded (`sh == 0 → 0.0`), `save_pct`/`shots_on_target_pct` guarded, `dribble_success_pct` added, `pkwon`/`pkcon` dropped (fully null).
 
 **position_v2:** `parse_lineups()` computes each player's **duration-weighted most-played position** from StatsBomb lineup `positions[]` segments (final-whistle clock read from the match's events file, `max(minute*60+second)`), mapped to 6 groups (GK/CB/FB-WB/MF/Wide/ST). Real distribution for the 217 eligible players: **GK=28, CB=59, FB/WB=36, MF=55, Wide=21, ST=18**. `merge_position_v2()` writes `master["position_v2"]` via the shared identity bridge; the 4-way `position_group` column is untouched.
+
+**P7 (position-scoped KMeans engine):** `v2_model_engine.py` is a **headless** engine (no streamlit in the import graph) that fits one KMeans per `position_v2` group on the P6 master — k = 2/3/3/5/3/4 (GK/CB/FB-WB/MF/Wide/ST), `random_state=42`, `n_init=10` — standardizes per group, and labels each cluster against the **20 σ-offset archetypes**. `models_v2/` persists per-group scalers + KMeans, `cluster_labels_v2.json`, and `metadata_v2.json` (dataset SHA256, row/group counts, per-group features, library versions). CLI: `python v2_model_engine.py --persist` / `--evaluate`.
+
+**P7 key design points:**
+- **σ-offset archetype encoding:** `GROUP_ARCHETYPES` stores each archetype's traits as σ-above-group-mean offsets (Important traits +2.0–2.5σ, everything else 0.0σ = group mean), not raw units. `_archetype_vectors_raw` converts to raw units via the player-level scaler's `mean_`/`scale_`, so label distances are measured in group-standard-deviations — fixing the raw-unit hand-authored vectors that were 2–40σ off real centroids (root cause of the first fit labelling all 217 players "Mixed Profile").
+- **Dimension-aware threshold:** `_label_threshold(n) = 3.5 · √(n / 6)` preserves v1's 3.5-at-6-features semantics as feature counts grow (a cluster off by ~1σ in ~12 dims exceeds √12 ≈ 3.5 — honest "Mixed Profile", never forced).
+- **`_artifact_stem`:** the `FB/WB` group name contains a `/`, so artifact filenames sanitize it (`FB_WB_scaler.joblib`); a naive `Path / "FB/WB_scaler.joblib"` would write into a non-existent `models_v2/FB/` directory and crash `--persist`.
+- **Headless:** pure helpers (`_assign_labels_from_archetypes`, `evaluate_clustering`, `_compute_dataset_hash`) are copied verbatim from `model_engine.py` rather than imported, so the engine runs without Streamlit.
 
 **Key design points:**
 - **Two-pass parse** (`parse_events`): first pass indexes shots by event id so GK `related_events` resolve to linked shots.

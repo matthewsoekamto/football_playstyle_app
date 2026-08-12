@@ -25,6 +25,8 @@ python -m pytest tests/ -k "determinism" -v   # specific test
 python scripts/download_statsbomb.py          # fetch StatsBomb Open Data into data/statsbomb/
 python statsbomb_parser.py                    # parse raw events -> 44 event-derived features (P3+P6) + parse_lineups -> position_v2
 python build_master_dataset.py                # FBref + StatsBomb -> data/wc2022_players_master.csv
+python v2_model_engine.py --persist           # v2 headless engine: fit + save to models_v2/ + log eval metrics
+python v2_model_engine.py --evaluate          # v2 headless engine: fit + eval (no save)
 
 # Lint
 ruff check .
@@ -47,13 +49,18 @@ tests/              (pytest + conftest.py fixture, one file per module)
 .github/workflows/  (CI: ruff check + pytest on push/PR to main)
 models/             (gitignored: persisted scalers, KMeans, metadata.json)
 
-v2 data pipeline (WC 2022 rebuild, in parallel — not yet wired into app.py)
+v2 data pipeline + engine (WC 2022 rebuild, in parallel — not yet wired into app.py)
 statsbomb_parser.py   (pure parser: StatsBomb events -> 44 event-derived features [21 P3 + 23 P6]; parse_lineups -> position_v2)
 scripts/download_statsbomb.py  (fetch raw StatsBomb Open Data into data/statsbomb/, gitignored)
 build_master_dataset.py  (FBref CSVs + StatsBomb events -> data/wc2022_players_master.csv; merge_position_v2)
+v2_model_engine.py    (headless engine: per-position_v2 KMeans, 20 σ-offset archetype labels, models_v2/ persistence)
 tests/test_statsbomb_parser.py  (52 parser tests, incl. locked P3+P6 contracts + position_v2)
+tests/test_v2_model_engine.py   (16 engine tests: determinism, provenance, persistence roundtrip, no-streamlit import)
+models_v2/            (gitignored: v2 per-group scalers/KMeans, cluster_labels_v2.json, metadata_v2.json)
 data/statsbomb/       (gitignored raw JSON: events/, lineups/, matches/)
 ```
+
+`v2_model_engine.py` is **headless** — no streamlit in its import graph. It copies the v1 pure helpers verbatim (`_assign_labels_from_archetypes`, `evaluate_clustering`, `_compute_dataset_hash`) rather than importing `model_engine`/`data_loader`.
 
 Dependency direction is strictly one-way. No module imports from `app.py`. `charts.py` and `features.py` are importable without Streamlit runtime.
 
@@ -92,6 +99,8 @@ Two datasets coexist, one per app version:
 **v1 legacy** — `data/players_data_light-2025_2026.csv`: 2,839 rows × 53 columns, Big 5 European leagues (2025/26). After Min≥270 filter: 2,183 rows, ~155 GK, ~2,028 outfield (GK count drops from 194 to 155 because GKs tend to accrue fewer minutes than outfield players). FBref export shape with comma-flattened multi-index headers. GK-only stats (Saves, Save%, GA, CS, etc.) are empty for outfield rows.
 
 **v2 rebuild** — `data/wc2022_players_master.csv`: 217 rows × 192 columns (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`), FIFA World Cup 2022 (StatsBomb competition 43 / season 106). Built by `build_master_dataset.py` from FBref CSVs + StatsBomb events; 217 eligible players after Min≥270 filter. **P3+P6 complete** — 44 locked event-derived features: P3 (pressures, recoveries, touches by zone, GK metrics) at `7ccb424`, P6 (passing, defending/duels, shots/xG/npxG, box/final-third touches, penalties) + `position_v2` (6 groups from most-played StatsBomb lineup position: GK=28, CB=59, FB/WB=36, MF=55, Wide=21, ST=18) on branch `statsbomb-parser`. Raw StatsBomb Open Data lives in `data/statsbomb/` (gitignored; reproducible via `scripts/download_statsbomb.py`).
+
+**v2 engine (P7)** — `v2_model_engine.py` clusters the master by `position_v2` group (k=2/3/3/5/3/4) and labels each cluster against the **20 σ-offset archetypes** (traits as σ-above-group-mean, converted to raw units via the player-level scaler). Persists to `models_v2/` (gitignored), invalidated by SHA256 of the CSV. `python v2_model_engine.py --persist` fits+saves; `--evaluate` fits+logs per-group silhouette/DB + label distribution.
 
 Source FBref CSVs (`wc2022_standard.csv`, `wc2022_shooting.csv`, `wc2022_miscellaneous.csv`, `wc2022_gk.csv`) remain in `data/` as inputs to the v2 build.
 
@@ -156,6 +165,14 @@ The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /d
 ## Changelog (Session Chronicle)
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
+
+### 2026-08-12 — P7 complete: position-scoped KMeans engine + σ-offset archetype labeling (branch `statsbomb-parser`)
+- **P7 RESOLVED:** `v2_model_engine.py` fits one KMeans per `position_v2` group (k=2/3/3/5/3/4, seed 42) and labels clusters against the 20 archetypes. Persistence to `models_v2/` (gitignored; per-group scaler/kmeans joblib, `cluster_labels_v2.json`, `metadata_v2.json` with SHA256). CLI `--persist`/`--evaluate` verified end-to-end — cache reload reproduces fresh-fit labels exactly.
+- **Plan deviation (documented at the review gate):** the first fit labelled **all 217 players "Mixed Profile"**. Root cause: hand-authored raw-unit archetype vectors were 2–40σ off real centroids (e.g. `avg_def_position_y` −41σ on a near-constant column; the `absent→0.0` default on low-variance `pass_completion_pct` at −9.6σ). Fixed by rewriting `GROUP_ARCHETYPES` as **σ-offset profiles** (Important traits +2.0–2.5σ, else 0.0σ = group mean) + `_archetype_vectors_raw` + `_label_threshold(n)=3.5·√(n/6)`. This is the fix the plan's review gate deferred to the owner; it preserves the plan's architecture.
+- **Bug caught by the new tests:** artifact filenames for `FB/WB` contained a `/`, so `Path / "FB/WB_scaler.joblib"` resolved to a non-existent `models_v2/FB/` dir → `--persist` would crash. Fixed with `_artifact_stem` (`FB_WB`).
+- **Review-gate results (`--evaluate`, 217 players):** GK Shot Stopper 10 / **Mixed 18** (sil 0.195, DB 1.71); CB Ball-Playing 23 / Traditional 21 / Stopper 15 (0.091, 2.34); FB/WB Attacking 25 / Defensive 11 (0.063, 2.32); MF Deep-Lying 32 / Defensive Midfielder 21 / Mixed 1 / Shadow Striker 1 (0.091, 1.51); Wide Inverted 9 / Traditional 9 / Wide Playmaker 3 (0.122, 1.75); ST Complete Forward 9 / False 9 5 / Target Man 4 (0.146, 1.39). The GK 18/28 Mixed is **data-correct**, not a calibration failure — it matches v1's Phase 4C finding (this WC 2022 GK pool has no sweeper split; the quiet-GK cluster is genuinely 5.44σ from both prototypes vs threshold 5.15). MF singletons: Neymar → Shadow Striker (huge xG/SCA/shots — semantically right), c3 → honest Mixed outlier. Low silhouette is expected for high-dim small-n groups (ST 18×34, k=4) — flagged in the plan's Risks.
+- **Tests:** 16 engine tests in `tests/test_v2_model_engine.py` (determinism, provenance, small-group guard, persistence roundtrip + hash-mismatch, no-streamlit import graph, real-master feature availability / data-fix bounds / non-degenerate labels). 104/104 full suite, ruff clean.
+- **Docs updated:** `PROJECT_STATE.md` (P7 done, Phase 4 next), `ARCHITECTURE.md` §11 (P7 paragraph + design points), `TASK_BACKLOG.md` (V2-ML RESOLVED + review gate note), CLAUDE.md (this entry, commands, tree, dataset).
 
 ### 2026-08-12 — P6 complete: position-scoped features + position_v2 (branch `statsbomb-parser`)
 - **P6 RESOLVED:** 23 locked event-derived features (passing, defending/duels, shots/xG/npxG, box/final-third touches, penalty GK) + `parse_lineups()`/`position_v2` (6 groups) → master **217 rows × 192 cols**. Data fixes: `conversion_pct` overflow (sh==0 → 0.0), `save_pct`/`shots_on_target_pct` guarded, `dribble_success_pct` added, fully-null `pkwon`/`pkcon` dropped.
