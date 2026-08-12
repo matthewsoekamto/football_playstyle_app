@@ -51,9 +51,9 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 - **Tests:** 17 engine tests in `tests/test_v2_model_engine.py` (constant structure, determinism, all-rows-labeled, label provenance, small-group guard, unknown-position exclusion, persistence roundtrip, hash-mismatch invalidation, no-streamlit import graph, real-master feature availability/data fixes/non-degenerate labels, GK-fallback label).
 - **Review gate (owner decision — RESOLVED):** first `--evaluate` flagged GK (18/28 "Mixed Profile") — root-caused as a genuinely quiet GK cluster, not a calibration failure. Owner decided "Mixed Profile" is not acceptable as a dominant user-facing output and renamed the **GK fallback to "Traditional Goalkeeper"** (verified: the quiet cluster is the stay-at-home keeper — below-mean on saves and every sweeping/distribution trait). Now GK = Shot Stopper 10 · Traditional Goalkeeper 18; other groups keep "Mixed Profile" for their rare outliers (MF 1).
 
-### V2-MERGE: Merge `statsbomb-parser` → `main` — ⏸️ WAITING ON OWNER APPROVAL
-- **Status:** **NEXT ACTION — blocked on owner approval.** Branch `statsbomb-parser` is **4 commits ahead of main** (main at `47a45d7`): `18ebbd5` (spec 19–20), `8ec9b68` (P6), `eecb0b3` (P7), `6d0c564` (GK label rename). All Phase B work is committed + pushed to `origin/statsbomb-parser`; **nothing has been merged to `main` yet**. Do not merge without explicit owner sign-off (established ff-merge pattern; never force-push).
-- **Once merged, validate on main:** `python -m pytest tests/ -q` (105 expected), `ruff check .`, `python v2_model_engine.py --evaluate` reproduces the label distribution (GK = Shot Stopper 10 · Traditional Goalkeeper 18).
+### V2-MERGE: Merge `statsbomb-parser` → `main` — ✅ RESOLVED (2026-08-12)
+- **Status:** RESOLVED. Phase B (spec 19–20, P6, P7, GK label rename, docs handoff) was fast-forwarded to `main` as 5 commits; `main` = `origin/main` = `caffe0e`. Merged via a local ff-merge + push (no force). The `statsbomb-parser` branch is kept in sync with `main`.
+- **Post-merge validation on main:** `python -m pytest tests/ -q` (105 expected), `ruff check .`, `python v2_model_engine.py --evaluate` reproduces the label distribution (GK = Shot Stopper 10 · Traditional Goalkeeper 18). CI runs these on every push to `main`.
 
 ### P8: v2 clustering evaluation (silhouette, DB, stability/bootstrap)
 - **Priority:** Medium | **Effort:** ~1 day

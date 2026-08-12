@@ -106,10 +106,10 @@ Source FBref CSVs (`wc2022_standard.csv`, `wc2022_shooting.csv`, `wc2022_miscell
 
 ## Current Status (v2) — 2026-08-12
 
-**Phase B is complete but NOT merged.** All v2 ML work (P6 position-scoped features + `position_v2`, P7 position-scoped KMeans engine, GK fallback-label rename) lives on branch **`statsbomb-parser`**, **4 commits ahead of `main`** (`18ebbd5` spec 19–20 · `8ec9b68` P6 · `eecb0b3` P7 · `6d0c564` GK label rename). Committed + pushed to `origin/statsbomb-parser`; **nothing merged to `main` yet — merging requires explicit owner approval** (ff-merge pattern; never force-push).
+**Phase B is merged into `main`** (2026-08-12). P6 position-scoped features + `position_v2`, the P7 position-scoped KMeans engine, and the GK fallback-label rename were fast-forwarded to `main` as 5 commits (`18ebbd5` spec 19–20 · `8ec9b68` P6 · `eecb0b3` P7 · `6d0c564` GK label rename · `caffe0e` docs handoff); `main` = `origin/main` = `caffe0e`. The `statsbomb-parser` branch is kept in sync with `main` for reference.
 
 - **Engine output (217 players):** GK = Shot Stopper 10 · Traditional Goalkeeper 18 · CB = Ball-Playing 23 / Traditional 21 / Stopper 15 · FB/WB = Attacking 25 / Defensive 11 · MF = Deep-Lying 32 / Defensive Mid 21 / Shadow Striker 1 / Mixed 1 · Wide = Inverted 9 / Traditional 9 / Wide Playmaker 3 · ST = Complete Forward 9 / False 9 5 / Target Man 4. Reproduce with `python v2_model_engine.py --evaluate`.
-- **Next actions (in order):** ① merge → `main` (owner approval) → ② **P8** evaluation (bootstrap stability) → ③ **P9** visualization + wire into `app.py`. Tracked in `TASK_BACKLOG.md` (V2-MERGE / P8 / P9); full state in `docs/PROJECT_STATE.md`.
+- **Next actions (in order):** ① **P8** evaluation (bootstrap stability) → ② **P9** visualization + wire into `app.py`. Tracked in `TASK_BACKLOG.md` (V2-MERGE RESOLVED / P8 / P9); full state in `docs/PROJECT_STATE.md`.
 - **Persistence caveat:** v2 model artifacts invalidate on dataset-hash change only — a code change (labels/archetypes) silently serves stale labels on `--persist`; clear `models_v2/` and re-run `--persist` when the code changes.
 
 ## Mandatory Pre-Read (per DEVELOPMENT_WORKFLOW.md)
@@ -173,6 +173,10 @@ The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /d
 ## Changelog (Session Chronicle)
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
+
+### 2026-08-12 — Phase B merged to main (owner approval)
+- **Merge complete:** `statsbomb-parser` → `main` fast-forwarded (5 commits: `18ebbd5` · `8ec9b68` · `eecb0b3` · `6d0c564` · `caffe0e`); `main` = `origin/main` = `caffe0e`. Done from the isolated worktree via a temp-branch local ff-merge + push (`git push origin ff-merge-main:main`); the shared checkout's local `main` needs one `git pull` to catch up. `statsbomb-parser` kept in sync with `main`.
+- **Next:** P8 (v2 evaluation: bootstrap stability) → P9 (v2 visualization + wire into `app.py`).
 
 ### 2026-08-12 — Review gate resolved: GK fallback label renamed "Traditional Goalkeeper" (branch `statsbomb-parser`)
 - **Decision (owner):** "Mixed Profile" is not acceptable as a dominant user-facing output. The WC 2022 GK pool is genuinely homogeneous — 18/28 GKs exceed the archetype threshold — so the fallback is now per-group via `GROUP_FALLBACK_LABEL`: **GK → "Traditional Goalkeeper"**, other groups keep the honest "Mixed Profile" (their outliers number ≤2). Verified the quiet GK cluster really is the stay-at-home keeper: below-mean on saves (−0.49σ) and on *every* sweeping/distribution trait (passes −0.45σ, long passes −0.47σ, prog passes −0.49σ, sweeper clearances −0.45σ, def-actions-outside-box −0.28σ, deeper line +0.23σ). Output now **GK = Shot Stopper 10 · Traditional Goalkeeper 18**; MF keeps Mixed Profile 1 (its genuine outlier). A global rename would have mislabelled that MF outlier "Traditional Goalkeeper" — hence the per-group map, threaded through `_assign_labels_from_archetypes(fallback_label=...)`.
