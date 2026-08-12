@@ -21,58 +21,58 @@
 | 3 | goals_prevented_p90 (psxG − GA) | **StatsBomb** | FBref has `PSxG` but not per-GK shots faced; SB has `statsbomb_xg2` per shot + GK attribution | Yes (GK minutes) | Yes (PSxG sum per GK) | P1 |
 | 4 | claims_p90 (high crosses caught) | **StatsBomb** | FBref GK advanced has `Crosses Claimed` but not separated by type; SB `goalkeeper.type=Collected` is explicit | No | Yes (filter Collected) | P1 |
 | 5 | reflex_saves_p90 (close-range) | **StatsBomb** | FBref does not have close-range save split; SB: shot location + GK save | No | Yes (distance < 5.5y) | P2 |
-| 6 | passes_p90 | **FBref** | Passing table has `Cmp` + `Att`; reliable per-90 | No | No | P0 |
-| 7 | long_passes_p90 | **FBref** | Pass Types table has `Long` `Cmp`/`Att` | No | No | P0 |
-| 8 | prog_passes_p90 | **FBref** | Passing table has `PrgP` (Opta definition) | No | No | P0 |
+| 6 | passes_p90 | **StatsBomb** | No FBref passing table in the v2 download; SB `Pass` event count (P6) | No | Yes (count Pass) | P0 |
+| 7 | long_passes_p90 | **StatsBomb** | SB `pass.length > 25` OR `height.name == "High Pass"` (P6); FBref pass-types table not downloaded | No | Yes (filter) | P0 |
+| 8 | prog_passes_p90 | **StatsBomb** | SB `Pass` with `end_x − start_x ≥ 10` (P6); FBref passing table not downloaded | No | Yes (distance filter) | P0 |
 | 9 | def_actions_outside_box_p90 | **StatsBomb** | FBref has no GK defensive action location; SB: all GK event locations | No | Yes (location filter) | P1 |
 | 10 | avg_def_position_y | **StatsBomb** | FBref has no positional data; SB: mean y of GK events | No | Yes (mean y-coord) | P1 |
 | 11 | launch_passes_p90 (>40m) | **StatsBomb** | FBref has `Long` passes but no length threshold; SB `pass.length` | No | Yes (filter length > 40) | P1 |
 | 12 | sweeper_clearances_p90 | **StatsBomb** | FBref has no GK sweeper action type; SB `goalkeeper.type=Keeper Sweeper` | No | Yes (filter type) | P1 |
-| 13 | penalty_save_pct | **FBref** | Advanced GK table has `PKsv%` | No | No | P0 |
-| 14 | clearances_p90 | **FBref** | Defensive Actions table has `Clr` | No | No | P0 |
-| 15 | blocks_p90 | **FBref** | Defensive Actions table has `Blocks` | No | No | P0 |
-| 16 | aerial_duels_won_p90 | **FBref** | Defensive Actions has `Aerial Won` (Opta) | No | No | P0 |
-| 17 | aerial_duel_pct | **FBref** | `Aerial Won` / `Aerial Lost` available | No | Derived (won/(won+lost)) | P0 |
+| 13 | penalty_save_pct | **StatsBomb** | SB GK `Penalty Saved` / penalties faced (P6); FBref `PKsv%` not downloaded | No | Yes (GK penalty event types) | P0 |
+| 14 | clearances_p90 | **StatsBomb** | SB `Clearance` event count (P6); FBref defensive-actions table not downloaded | No | Yes (count Clearance) | P0 |
+| 15 | blocks_p90 | **StatsBomb** | SB `Block` event count (P6) | No | Yes (count Block) | P0 |
+| 16 | aerial_duels_won_p90 | **StatsBomb** | SB `pass.aerial_won` + `clearance.aerial_won` (P6); FBref defensive-actions table not downloaded | No | Yes (two event types) | P0 |
+| 17 | aerial_duel_pct | **StatsBomb (approx.)** | SB `aerial_won / (aerial_won + Duel type=Aerial Lost)` (P6); open-data duels lack outcome, so the denominator is approximate — documented in FEATURE_VALIDATION | No | Derived | P0 |
 | 18 | interceptions_p90 | **FBref** | Defensive Actions has `Int` | No | No | P0 |
 | 19 | tackles_won_p90 | **FBref** | Defensive Actions has `TklW` | No | No | P0 |
 | 20 | headed_clearances_p90 | **StatsBomb** | FBref `Clr` not split by body part; SB `clearance.head=true` | No | Yes (filter head) | P1 |
-| 21 | pass_completion_pct | **FBref** | Passing table `Cmp%` | No | No | P0 |
+| 21 | pass_completion_pct | **StatsBomb** | SB `Pass` with no `pass.outcome` / attempted (P6) | No | Yes (ratio) | P0 |
 | 22 | carries_p90 | **FBref** | Possession table has `Carries` | No | No | P0 |
 | 23 | prog_carries_p90 | **FBref** | Possession table has `PrgC` | No | No | P0 |
-| 24 | passes_into_final_third_p90 | **FBref** | Passing table has `1/3` (completed into final third) | No | No | P0 |
-| 25 | switches_p90 | **FBref** | Pass Types table has `Sw` (switches) | No | No | P0 |
+| 24 | passes_into_final_third_p90 | **StatsBomb** | SB `Pass` with `start_x < 80 ≤ end_x` (P6); FBref passing table not downloaded | No | Yes (zone filter) | P0 |
+| 25 | switches_p90 | **StatsBomb** | SB `pass.switch` (P6) | No | Yes (count switch) | P0 |
 | 26 | pressures_p90 | **StatsBomb** | FBref: "don't yet have a source" (SR blog 2023); SB `Pressure` event type | No | Yes (count Pressure events) | P0 |
 | 27 | pressures_final_third_p90 | **StatsBomb** | FBref lacks pressures entirely; SB location filter x≥80 | No | Yes (location filter) | P1 |
 | 28 | pressures_mid_third_p90 | **StatsBomb** | Same as above; SB location filter 40<x<80 | No | Yes | P1 |
 | 29 | fouls_p90 | **FBref** | Standard/Misc table has `Fls` | No | No | P0 |
-| 30 | duels_won_p90 | **FBref** | Defensive Actions `TklW` + `Aerial Won` (approximation) | No | Derived | P1 |
+| 30 | duels_won_p90 | **StatsBomb** | SB `Duel` with `outcome ∈ {Won, Success In Play, Success Out}` (P6); FBref defensive-actions table not downloaded | No | Yes (outcome filter) | P1 |
 | 31 | recoveries_p90 | **StatsBomb** | FBref has no `Recoveries`; SB `Ball Recovery` event | No | Yes (count recoveries) | P1 |
 | 32 | crosses_p90 | **FBref** | Pass Types has `Crs` (completed crosses) | No | No | P0 |
 | 33 | cross_accuracy_pct | **StatsBomb** | FBref `Crs` is completed only; SB `pass.cross=true` + outcome for accuracy | No | Yes (cross + outcome) | P1 |
 | 34 | final_third_entries_p90 | **StatsBomb** | FBref has `1/3` (passes) + `CPA` (carries into 1/3) but not unified; SB: any event end_location in final third | No | Yes (carry+pass end_location) | P1 |
-| 35 | touches_att_pen_p90 | **StatsBomb** | FBref has `Att Pen` touches; SB: any event location in pen area — cross-check consistency | Yes (minutes) | Yes (location filter) | P1 |
-| 36 | key_passes_p90 | **FBref** | Passing table has `KP` | No | No | P0 |
+| 35 | touches_att_pen_p90 | **StatsBomb** | SB `Ball Receipt*` with `x ≥ 102, 18 ≤ y ≤ 62` (P6). One feature, aliased in the spec as touches_att_box / box_touches / touches_opp_box | Yes (FBref 90s) | Yes (location filter) | P1 |
+| 36 | key_passes_p90 | **StatsBomb** | SB `pass.shot_assist` (P6); FBref passing table not downloaded | No | Yes (count shot_assist) | P0 |
 | 37 | xA_p90 | **FBref** | Passing table has `xAG` (Opta xA) | No | No | P0 |
 | 38 | dribbles_p90 | **FBref** | Possession has `Take-ons Att` (Opta "Take-ons" ≈ dribbles) | No | No | P0 |
 | 39 | carries_into_box_p90 | **StatsBomb** | FBref has `CPA` (carries into pen area) but not box; SB `carry.end_location` in box | No | Yes (location filter) | P1 |
 | 40 | dribble_success_pct | **FBref** | Possession has `Take-ons Succ` / `Att` | No | Derived | P0 |
-| 41 | shot_creating_actions_p90 | **FBref** | GCA table has `SCA` | No | No | P0 |
+| 41 | shot_creating_actions_p90 | **StatsBomb (proxy)** | True SCA impossible in open data (shot `related_events` carry only outcome events, never buildup); proxy = `key_passes_p90` (P6) — documented in FEATURE_VALIDATION | No | Yes (proxy) | P1 |
 | 42 | touches_wide_p90 | **StatsBomb** | FBref has `Def 3rd`/`Mid 3rd`/`Att 3rd` zones but not wide channels; SB y≤16 or y≥64 | No | Yes (location filter) | P1 |
 | 43 | touches_halfspace_p90 | **StatsBomb** | FBref has no half-space zones; SB y 16-25 / 55-64 | No | Yes | P1 |
-| 44 | through_balls_p90 | **FBref** | Pass Types has `TB` (through balls) | No | No | P0 |
-| 45 | passes_into_box_p90 | **FBref** | Passing has `PPA` (passes into pen area) | No | No | P0 |
+| 44 | through_balls_p90 | **StatsBomb** | SB `pass.through_ball` (P6); FBref pass-types table not downloaded | No | Yes (count) | P0 |
+| 45 | passes_into_box_p90 | **StatsBomb** | SB `Pass` ending inside the box (`x ≥ 102, 18 ≤ y ≤ 62`) (P6) | No | Yes (zone filter) | P0 |
 | 46 | gls_p90 | **FBref** | Standard stats `Gls` | No | No | P0 |
-| 47 | shots_p90 | **FBref** | Shooting table `Sh` | No | No | P0 |
-| 48 | xG_p90 | **FBref** | Shooting table `xG` | No | No | P0 |
-| 49 | shots_on_target_p90 | **FBref** | Shooting table `SoT` | No | No | P0 |
-| 50 | npxG_per_shot | **FBref** | `npxG` / `Sh` (derive; exclude pens) | No | Derived | P1 |
+| 47 | shots_p90 | **StatsBomb** | SB `Shot` event count (P6); FBref shooting table is downloaded and kept as a cross-check | No | Yes (count Shot) | P0 |
+| 48 | xG_p90 | **StatsBomb** | SB `Σ shot.statsbomb_xg` (P6) | No | Yes (sum) | P0 |
+| 49 | shots_on_target_p90 | **StatsBomb** | SB `Shot` with `outcome ∈ {Goal, Saved, Saved to Post, Saved Off Target}` (P6) | No | Yes (outcome filter) | P0 |
+| 50 | npxG_per_shot | **StatsBomb** | SB `Σ xg (non-pen) / COUNT(shots non-pen)` (P6) | No | Yes (derived) | P1 |
 | 51 | conversion_pct | **FBref** | `Gls` / `Sh` | No | Derived | P0 |
 | 52 | shots_on_target_pct | **FBref** | `SoT` / `Sh` | No | Derived | P0 |
 | 53 | box_entries_p90 | **StatsBomb** | FBref has `CPA` + `PPA` but not combined "box entries"; SB: carry end_location in box | No | Yes | P1 |
-| 54 | final_third_touches_p90 | **FBref** | Possession has `Att 3rd` touches | No | No | P0 |
+| 54 | final_third_touches_p90 | **StatsBomb** | SB `Ball Receipt*` with `x ≥ 80` (P6); FBref possession table not downloaded | No | Yes (zone filter) | P0 |
 | 55 | one_touch_finishes_p90 | **StatsBomb** | FBref has no first-time shot flag; SB `shot.first_time=true` | No | Yes | P1 |
 | 56 | headers_p90 | **StatsBomb** | FBref shooting has `Head` but not headers total; SB `shot.body_part=Head` + `clearance.head` | No | Yes (define scope: shots only) | P2 |
-| 57 | headed_goals_p90 | **FBref** | Shooting table has `Gls` by body part (Head) | No | No | P0 |
+| 57 | headed_goals_p90 | **StatsBomb** | SB `Shot` with `body_part.name == "Head"` and `outcome == "Goal"` (P6) | No | Yes (filter) | P0 |
 | 58 | fouls_won_p90 | **FBref** | Standard/Misc has `Fld` (fouls drawn) | No | No | P0 |
 | 59 | hold_up_passes_p90 | **StatsBomb (proxy)** | Neither source has true "layoffs"; SB `passes_received` (Ball Receipt) as proxy; FBref has no equivalent | No | Yes (proxy) | P2 |
 | 60 | passes_received_p90 | **StatsBomb** | FBref has no receptions metric; SB `Ball Receipt` event | No | Yes | P1 |
@@ -87,8 +87,8 @@
 
 | Source | Feature Count | Notes |
 |--------|---------------|-------|
-| **FBref** | 38 | All standard/advanced season aggregates |
-| **StatsBomb** | 26 | Pressures, GK claim types, spatial zones, first-time finishes, receptions, headers, recoveries |
+| **FBref** | 16 | Standard/advanced season aggregates (Gls, Ast, Saves, Save%, Int, TklW, carries, dribbles, crosses, xA, fouls, conversion/shot-accuracy ratios) |
+| **StatsBomb** | 48 | P3 event metrics (pressures, GK micro-actions, spatial zones, first-time finishes, receptions, headers, recoveries) + P6 event metrics (passing, defending, duels, shots/xG/npxG, box/final-third touches, penalties) |
 
 ---
 
@@ -104,18 +104,19 @@
 - StatsBomb minutes = derived from lineup + event timestamps
 - **Impact:** Per-90 rates will differ slightly between sources
 - **Solution:** Use **FBref `90s`** as the canonical denominator for ALL features. Compute StatsBomb features as `count / fbref_90s * 90`. Requires merging on player first, then normalizing.
+- **Accepted exception:** the four `_sb`-suffixed possession columns (`carries_p90_sb`, `prgcarries_p90_sb`, `att_p90_sb`, `succ_p90_sb`) come pre-normalized from the StatsBomb players export using SB minutes (`90s_sb`). Kept as-is; the v2 engine standardizes within each position group, which absorbs the minor scale difference.
 
 ### 3. Feature Duplication Risk
 | Feature | FBref Column | StatsBomb Equivalent | Decision |
 |---------|--------------|---------------------|----------|
-| prog_passes | `PrgP` | `pass.length + location` | FBref wins |
-| prog_carries | `PrgC` | `carry.end_location - start` | FBref wins |
-| crosses | `Crs` | `pass.cross=true` | FBref wins |
-| touches_att_pen | `Att Pen` | event location in box | **FBref wins** (more reliable denominator) |
-| aerial_duels_won | `Aerial Won` | `duel.type=Aerial` | FBref wins |
-| xA | `xAG` | N/A | FBref wins |
+| prog_passes | `PrgP` | `pass.length + location` | **StatsBomb wins** (P6; FBref passing table not downloaded) |
+| prog_carries | `PrgC` | `carry.end_location - start` | FBref wins (`prgcarries_p90_sb`) |
+| crosses | `Crs` | `pass.cross=true` | FBref wins (`crosses_p90`) |
+| touches_att_pen | `Att Pen` | event location in box | **StatsBomb wins** (P6 `touches_att_pen_p90`; FBref possession table not downloaded) |
+| aerial_duels_won | `Aerial Won` | `duel.type=Aerial` | **StatsBomb wins** (P6 `aerial_duels_won_p90`; FBref defensive-actions table not downloaded) |
+| xA | `xAG` | N/A | FBref wins (`xA_p90_sb` from SB export) |
 
-**Rule:** Where both exist, FBref is canonical. StatsBomb only fills gaps.
+**Rule:** Where both exist, the source actually present in the v2 master is canonical. The v2 download only includes the standard/shooting/miscellaneous/GK FBref tables, so passing, defending, possession and xG-family features default to StatsBomb (P6). StatsBomb-only fills the rest.
 
 ### 4. Missing FBref Features (No Direct Equivalent)
 These **must** come from StatsBomb:

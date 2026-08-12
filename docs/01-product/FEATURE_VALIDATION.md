@@ -13,7 +13,7 @@
 |---|---------|--------|-----------------|-------------|---------|-----------|------------------------|
 | 1 | saves_p90 | **Direct** | `Shot` (faced), `Goal Keeper` | Event type `"Goal Keeper"` w/ `goalkeeper.type.name == "Shot Saved"` | `COUNT(goalkeeper WHERE type=Shot Saved) / minutes * 90` | **High** | — |
 | 2 | save_pct | **Derived** | `Shot`, `Goal Keeper` | `shot.outcome.name IN ("Goal","Saved","Saved To Post")` vs GK saves | `saves / (saves + goals_conceded)` where GK faced the shot | **High** | — |
-| 3 | goals_prevented_p90 (psxG−GA) | **Derived** (⚠️ xg2 caveat) | `Shot` | `shot.statsbomb_xg2` (post-shot xG), `shot.outcome.name == "Goal"` | `SUM(xg2 for all shots faced) - goals_conceded` per GK team | **Medium** | Drop xg2, use `SUM(xG faced) - GA` as proxy |
+| 3 | goals_prevented_p90 (psxG−GA) | **Derived** (proxy) | `Shot`, `Goal Keeper` | `shot.statsbomb_xg`, `goalkeeper.type.name == "Goal Conceded"` | Locked P3: `SUM(statsbomb_xg of linked shots faced) - goals_conceded` per GK. xg2 (true PSxG) unused — the xg proxy IS the implementation | **Medium** | — |
 | 4 | claims_p90 | **Direct** | `Goal Keeper` | `goalkeeper.type.name == "Collected"` | `COUNT(type=Collected) / minutes * 90` | **High** | — |
 | 5 | reflex_saves_p90 | **Derived** | `Goal Keeper`, `Shot` | `goalkeeper.type=Shot Saved` AND `shot.location` distance < ~5.5y | `COUNT(close-range saves) / minutes * 90`; define distance threshold from shot origin to goal | **Medium** | All saves if distance calc too noisy |
 | 6 | passes_p90 | **Direct** | `Pass` | Event type `"Pass"` | `COUNT(pass) / minutes * 90` | **High** | — |
@@ -23,11 +23,11 @@
 | 10 | avg_def_position_y | **Derived** | All GK events | `location` | `MEAN(y-coord of all GK events)` | **High** | — |
 | 11 | launch_passes_p90 (>40m) | **Derived** | `Pass` (by GK) | `pass.length` | `COUNT(pass by GK WHERE pass.length > 40) / minutes * 90` | **High** | — |
 | 12 | sweeper_clearances_p90 | **Direct** | `Goal Keeper` | `goalkeeper.type.name == "Keeper Sweeper"` | `COUNT(type=Keeper Sweeper) / minutes * 90` | **High** | — |
-| 13 | penalty_save_pct | **Derived** | `Shot`, `Goal Keeper` | `shot.type.name == "Penalty"`, `goalkeeper.type=Penalty Saved` | `penalty_saves / penalty_shots_faced` | **High** | — |
+| 13 | penalty_save_pct | **Derived** | `Goal Keeper` | `goalkeeper.type.name ∈ {"Penalty Saved", "Penalty Conceded"}` + `Shot Faced` linked to a `shot.type.name == "Penalty"` | `penalty_saved / penalty_faced` (P6; penalties faced = saved + conceded + missed) | **High** | — |
 | 14 | clearances_p90 | **Direct** | `Clearance` | Event type `"Clearance"` | `COUNT(clearance) / minutes * 90` | **High** | — |
 | 15 | blocks_p90 | **Direct** | `Block` | Event type `"Block"` | `COUNT(block) / minutes * 90` | **High** | — |
-| 16 | aerial_duels_won_p90 | **Derived** | `Duel`, `Pass`, `Clearance` | `duel.type.name == "Aerial Lost"` (negated), `pass.aerial_won`, `clearance.aerial_won` | `COUNT(events WHERE aerial_won=True) / minutes * 90`; must combine 3 event types | **Medium** | Duel-based aerial count only (simpler) |
-| 17 | aerial_duel_pct | **Derived** | `Duel` | `duel.type.name`, `duel.outcome.name` | `aerial_duels_won / total_aerial_duels` | **Medium** | — |
+| 16 | aerial_duels_won_p90 | **Derived** | `Pass`, `Clearance` | `pass.aerial_won`, `clearance.aerial_won` | `COUNT(aerial_won=True on pass/clearance) / minutes * 90`. WC2022 open data has NO `Duel` outcomes, so wins come only from pass+clearance (verified: 1,483 + 536) | **High** | — |
+| 17 | aerial_duel_pct | **Derived (approx.)** | `Pass`, `Clearance`, `Duel` | `aerial_won` (pass/clearance); `Duel` with `duel.type.name == "Aerial Lost"` | `aerial_won / (aerial_won + COUNT(Duel=Aerial Lost))`. Open-data duels carry no outcome, so the denominator is approximate — documented | **Medium** | — |
 | 18 | interceptions_p90 | **Direct** | `Interception` | Event type `"Interception"` | `COUNT(interception) / minutes * 90` | **High** | — |
 | 19 | tackles_won_p90 | **Derived** | `Duel` | `duel.type.name == "Tackle"`, `duel.outcome.name IN ("Won","Success")` | `COUNT(tackle WHERE won) / minutes * 90` | **High** | — |
 | 20 | headed_clearances_p90 | **Direct** | `Clearance` | `clearance.body_part.name ≈ "Head"` OR `clearance.head` | `COUNT(clearance WHERE head) / minutes * 90` | **High** | — |
@@ -40,18 +40,18 @@
 | 27 | pressures_final_third_p90 | **Derived** | `Pressure` | `location` (x) | `COUNT(pressure WHERE x >= 80) / minutes * 90` | **High** | — |
 | 28 | pressures_mid_third_p90 | **Derived** | `Pressure` | `location` (x) | `COUNT(pressure WHERE 40 < x < 80) / minutes * 90` | **High** | — |
 | 29 | fouls_p90 | **Direct** | `Foul Committed` | Event type `"Foul Committed"` | `COUNT(foul_committed) / minutes * 90` | **High** | — |
-| 30 | duels_won_p90 | **Derived** | `Duel` | `duel.type.name`, `duel.outcome.name` | `COUNT(duel WHERE outcome=Won/Success) / minutes * 90` | **High** | — |
+| 30 | duels_won_p90 | **Derived** | `Duel` | `duel.outcome.name ∈ {"Won", "Success In Play", "Success Out"}` | `COUNT(duel WHERE won outcome) / minutes * 90` (outcome set verified in data) | **High** | — |
 | 31 | recoveries_p90 | **Direct** | `Ball Recovery` | Event type `"Ball Recovery"` | `COUNT(ball_recovery) / minutes * 90` | **High** | — |
 | 32 | crosses_p90 | **Direct** | `Pass` | `pass.cross == True` | `COUNT(pass WHERE cross=True) / minutes * 90` | **High** | — |
 | 33 | cross_accuracy_pct | **Derived** | `Pass` | `pass.cross == True`, `pass.outcome.name` | `COUNT(cross WHERE outcome IS NULL=complete) / COUNT(cross)` | **Medium** | Drop accuracy; use volume only |
 | 34 | final_third_entries_p90 | **Derived** | `Carry`, `Pass` | Both end_location coords | `COUNT(carry OR pass ending in final third) / minutes * 90` | **High** | — |
-| 35 | touches_att_pen_p90 | **Derived** | All event types | `location` | `COUNT(all events WHERE x>=102 AND 18<y<62) / minutes * 90` | **High** | — |
+| 35 | touches_att_pen_p90 | **Derived** | `Ball Receipt*` | `location` | `COUNT(Ball Receipt* WHERE x>=102 AND 18<=y<=62) / minutes * 90` (receptions only, P6) | **High** | — |
 | 36 | key_passes_p90 | **Direct** | `Pass` | `pass.shot_assist == True` | `COUNT(pass WHERE shot_assist=True) / minutes * 90` | **High** | — |
 | 37 | xA_p90 | **Impossible** | — | No expected assist model in open data | N/A | **Low** | Use `key_passes_p90` (shot assists) as proxy |
 | 38 | dribbles_p90 | **Direct** | `Dribble` | Event type `"Dribble"` (take-ons) | `COUNT(dribble) / minutes * 90` | **High** | — |
 | 39 | carries_into_box_p90 | **Derived** | `Carry` | `carry.end_location` | `COUNT(carry WHERE end_x>=102 AND 18<end_y<62) / minutes * 90` | **High** | — |
 | 40 | dribble_success_pct | **Direct** | `Dribble` | `dribble.outcome.name` | `COUNT(outcome=Complete) / COUNT(dribble)` | **High** | — |
-| 41 | shot_creating_actions_p90 | **Derived** | `Pass`, `Dribble`, `Carry`, `Duel` | `pass.shot_assist` + actions preceding shot within possession | Complex — count events that are `shot_assist`, or directly precede a teammate's shot in `related_events` chain | **Medium** | Simpler: `key_passes_p90` only |
+| 41 | shot_creating_actions_p90 | **Proxy** | `Pass` | `pass.shot_assist` | `= key_passes_p90` (P6). True SCA impossible in open data: shot `related_events` carry only outcome events, never buildup. Locked proxy | **Medium** | — |
 | 42 | touches_wide_p90 | **Derived** | All events | `location` (y) | `COUNT(events WHERE y<=16 OR y>=64) / minutes * 90` | **High** | — |
 | 43 | touches_halfspace_p90 | **Derived** | All events | `location` (y) | `COUNT(events WHERE 16<y<25 OR 55<y<64) / minutes * 90` | **Medium** | Merge into wide/central buckets |
 | 44 | through_balls_p90 | **Direct** | `Pass` | `pass.through_ball == True` | `COUNT(pass WHERE through_ball=True) / minutes * 90` | **High** | — |
@@ -64,7 +64,7 @@
 | 51 | conversion_pct | **Derived** | `Shot` | `shot.outcome.name` | `COUNT(outcome=Goal) / COUNT(shot)` | **High** | — |
 | 52 | shots_on_target_pct | **Derived** | `Shot` | `shot.outcome.name` | `COUNT(on target) / COUNT(shot)` | **High** | — |
 | 53 | box_entries_p90 | **Derived** | `Carry` | `carry.end_location` | `COUNT(carry entering box) / minutes * 90`; distinguishes from passes-into-box | **High** | — |
-| 54 | final_third_touches_p90 | **Derived** | All events | `location` (x) | `COUNT(all events WHERE x>=80) / minutes * 90` | **High** | — |
+| 54 | final_third_touches_p90 | **Derived** | `Ball Receipt*` | `location` (x) | `COUNT(Ball Receipt* WHERE x>=80) / minutes * 90` (receptions only, P6) | **High** | — |
 | 55 | one_touch_finishes_p90 | **Direct** | `Shot` | `shot.first_time == True` | `COUNT(shot WHERE first_time=True) / minutes * 90` | **High** | — |
 | 56 | headers_p90 | **Derived** | `Shot`, `Clearance`, `Pass` | `shot.body_part.name` / `clearance.head` / `pass.aerial_won` | Ambiguous — "headers" could mean headed shots, headed clearances, or aerial duels | **Low** | Define scope: headed shots only → `shot.body_part.name contains "Head"` |
 | 57 | headed_goals_p90 | **Derived** | `Shot` | `shot.outcome.name=="Goal"` AND `shot.body_part.name ≈ "Head"` | `COUNT(headed goals) / minutes * 90` | **High** | — |
@@ -122,6 +122,38 @@ Available via `shot.first_time` boolean. The Poacher archetype also cares about 
 
 ---
 
+## P6 Implementation Notes (2026-08-12)
+
+The P6 extension derives 23 more features from the same StatsBomb events (see
+`statsbomb_parser.py` P6_* constants and `build_master_dataset.py`
+P6_MASTER_COLUMNS). Statuses above reflect the implemented recipes:
+
+- **Penalties** are NOT linked via "Shot Saved". Dedicated GK types drive the
+  count — `Penalty Saved` (won), `Penalty Conceded` (conceded), and a missed
+  penalty surfaces as `Shot Faced` linked to a `shot.type.name == "Penalty"`
+  shot. Verified: 15 saved, 64 faced across the tournament.
+- **aerial_duel_pct** is approximate: WC2022 open-data `Duel` events have no
+  outcome (all `Aerial Lost` carry `outcome: None`), so wins come from
+  `pass.aerial_won` + `clearance.aerial_won` and the denominator adds the
+  `Aerial Lost` duel count.
+- **shot_creating_actions_p90** = `key_passes_p90` (proxy). Shot
+  `related_events` only ever reference outcome events, so buildup cannot be
+  reconstructed.
+- **Duel outcomes**: won set is `{Won, Success In Play, Success Out}`; `Aerial
+  Lost` duels never carry an outcome.
+- **Shot outcomes**: on-target set is `{Goal, Saved, Saved to Post, Saved Off
+  Target}`; `Blocked`, `Off T`, `Wayward` are off-target.
+- **touches_att_pen / final_third_touches** are reception-based (`Ball Receipt*`
+  only), not all-touch — matches the spec's "touches" intent while staying
+  derivable from events.
+- **conversion_pct / save_pct / shots_on_target_pct / dribble_success_pct** use
+  a zero-guard (`x/0 → 0.0`) to fix the pre-existing `conversion_pct` overflow
+  (1e9 for players with 1 goal and 0 shots).
+- **pkwon / pkcon** dropped from all feature sets (fully null in the FBref GK
+  export).
+
+---
+
 ## Summary
 
 ### By Count
@@ -129,7 +161,8 @@ Available via `shot.first_time` boolean. The Poacher archetype also cares about 
 | Status | Count |
 |--------|-------|
 | Direct | 22 |
-| Derived | 38 |
+| Derived | 37 |
+| Proxy | 1 |
 | Impossible | 3 |
 
 ### Impossible Features (3)

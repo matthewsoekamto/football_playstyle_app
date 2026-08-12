@@ -490,12 +490,25 @@ def derive_features(df):
     sh_col = find_col("Sh")
     sot_col = find_col("SoT")
 
+    # Division guards: a 0 denominator previously produced ~1e9 (Saiss:
+    # gls=1, sh=0) instead of a 0 rate. Rows with a missing (NaN) stat stay
+    # NaN — the guards only replace literal 0 denominators.
     if saves_col and sota_col:
-        df["save_pct"] = df[saves_col] / (df[sota_col] + 1e-9)
+        df["save_pct"] = np.where(df[sota_col] == 0, 0.0,
+                                  df[saves_col] / df[sota_col])
     if gls_col and sh_col:
-        df["conversion_pct"] = df[gls_col] / (df[sh_col] + 1e-9)
+        df["conversion_pct"] = np.where(df[sh_col] == 0, 0.0,
+                                        df[gls_col] / df[sh_col])
     if sot_col and sh_col:
-        df["shots_on_target_pct"] = df[sot_col] / (df[sh_col] + 1e-9)
+        df["shots_on_target_pct"] = np.where(df[sh_col] == 0, 0.0,
+                                             df[sot_col] / df[sh_col])
+
+    # P6: dribble success from the StatsBomb export take-ons (P0-derived).
+    succ_sb = find_col("succ_p90_sb")
+    att_sb = find_col("att_p90_sb")
+    if succ_sb and att_sb:
+        df["dribble_success_pct"] = np.where(df[att_sb] == 0, 0.0,
+                                             df[succ_sb] / df[att_sb])
 
     pos_col = find_col("Pos")
     if pos_col:
@@ -593,8 +606,64 @@ _P3_GK_COLUMNS = (
 )
 
 
+# ---------------------------------------------------------------------------
+# P6: position-scoped feature extension (additive — 23 new columns; the P3
+# contract above is untouched). All per-90 over FBref ``90s``. Recipes in
+# docs/01-product/FEATURE_VALIDATION.md and the approved Phase B plan.
+# ---------------------------------------------------------------------------
+P6_MASTER_COLUMNS = (
+    "passes_p90",
+    "prog_passes_p90",
+    "long_passes_p90",
+    "pass_completion_pct",
+    "passes_into_final_third_p90",
+    "switches_p90",
+    "key_passes_p90",
+    "through_balls_p90",
+    "passes_into_box_p90",
+    "clearances_p90",
+    "blocks_p90",
+    "aerial_duels_won_p90",
+    "aerial_duel_pct",
+    "duels_won_p90",
+    "penalty_save_pct",
+    "shots_p90",
+    "xG_p90",
+    "shots_on_target_p90",
+    "npxG_per_shot",
+    "headed_goals_p90",
+    "shot_creating_actions_p90",
+    "touches_att_pen_p90",
+    "final_third_touches_p90",
+)
+
+# parser raw count column -> master per-90 column
+_P6_COUNT_MAP = {
+    "passes": "passes_p90",
+    "prog_passes": "prog_passes_p90",
+    "long_passes": "long_passes_p90",
+    "passes_into_final_third": "passes_into_final_third_p90",
+    "switches": "switches_p90",
+    "key_passes": "key_passes_p90",
+    "through_balls": "through_balls_p90",
+    "passes_into_box": "passes_into_box_p90",
+    "clearances": "clearances_p90",
+    "blocks": "blocks_p90",
+    "aerial_won": "aerial_duels_won_p90",
+    "duels_won": "duels_won_p90",
+    "shots": "shots_p90",
+    "shots_on_target": "shots_on_target_p90",
+    "headed_goals": "headed_goals_p90",
+    "touches_att_pen": "touches_att_pen_p90",
+    "final_third_touches": "final_third_touches_p90",
+}
+
+# GK-scoped P6 feature: zero-filled for non-GKs after the join.
+_P6_GK_COLUMNS = ("penalty_save_pct",)
+
+
 def merge_statsbomb_event_features(master, sb_events):
-    """Attach the 21 StatsBomb event-derived features to ``master``.
+    """Attach the 21 P3 + 23 P6 StatsBomb event-derived features to ``master``.
 
     Runs AFTER ``match_fbref_to_sb`` has set ``player_sb`` and BEFORE
     ``compute_per90_from_fbref``. ``sb_events`` is the raw per-player
@@ -694,6 +763,105 @@ def merge_statsbomb_event_features(master, sb_events):
             assert (master.loc[unmatched, col] == 0).all(), (
                 f"P3 feature {col} attached to an unmatched master player")
 
+    # ---- P6: position-scoped extension (same identity bridge) ----
+    for col in P6_MASTER_COLUMNS:
+        master[col] = 0.0
+
+    for idx in np.flatnonzero(np.isfinite(resolved)):
+        pid = int(resolved[idx])
+        if pid not in agg.index:
+            continue
+        rec = agg.loc[pid]
+        n90 = nineties.iloc[idx]
+        for raw_col, master_col in _P6_COUNT_MAP.items():
+            master.at[idx, master_col] = float(rec[raw_col]) / n90
+        master.at[idx, "xG_p90"] = float(rec["xg_sum"]) / n90
+        passes = float(rec["passes"])
+        if passes:
+            master.at[idx, "pass_completion_pct"] = (
+                float(rec["pass_completed"]) / passes)
+        aerial_den = float(rec["aerial_won"]) + float(rec["aerial_lost"])
+        if aerial_den:
+            master.at[idx, "aerial_duel_pct"] = (
+                float(rec["aerial_won"]) / aerial_den)
+        non_pen = float(rec["non_pen_shots"])
+        if non_pen:
+            master.at[idx, "npxG_per_shot"] = (
+                float(rec["npxg_sum"]) / non_pen)
+        faced = float(rec["penalty_faced"])
+        if faced:
+            master.at[idx, "penalty_save_pct"] = (
+                float(rec["penalty_saved"]) / faced)
+        # Proxy (locked decision): true SCA is impossible in open data.
+        master.at[idx, "shot_creating_actions_p90"] = (
+            master.at[idx, "key_passes_p90"])
+
+    # GK scoping: penalty_save_pct is GK-only (FBref pos_n is the gate).
+    for col in _P6_GK_COLUMNS:
+        master.loc[~is_gk, col] = 0.0
+
+    master[list(P6_MASTER_COLUMNS)] = master[list(P6_MASTER_COLUMNS)].fillna(0.0)
+
+    if unmatched.any():
+        for col in P6_MASTER_COLUMNS:
+            assert (master.loc[unmatched, col] == 0).all(), (
+                f"P6 feature {col} attached to an unmatched master player")
+
+    return master
+
+
+# ---------------------------------------------------------------------------
+# P6: position_v2 (StatsBomb most-played position group)
+# ---------------------------------------------------------------------------
+def merge_position_v2(master, sb_positions):
+    """Attach ``position_v2`` (StatsBomb most-played position group).
+
+    Runs after ``match_fbref_to_sb`` (needs ``player_sb``) and shares its
+    identity bridge: normalized event player name -> player_id -> master row,
+    with squad disambiguation. Raises on squad mismatch or double-attach
+    (same guarantees as ``merge_statsbomb_event_features``). Players with no
+    lineup data keep ``"Unknown"``.
+    """
+    master = master.reset_index(drop=True)
+
+    lookup = {}
+    for _, r in sb_positions.iterrows():
+        pid = int(r["player_id"])
+        teams = {normalize_squad(t) for t in str(r["teams"]).split(";") if t}
+        for variant in str(r["name_variants"]).split(";"):
+            variant = variant.strip()
+            if variant:
+                lookup.setdefault(normalize_name(variant), (pid, teams))
+
+    master["position_v2"] = "Unknown"
+    pid_to_row = {}
+    resolved = np.full(len(master), np.nan)
+    for idx, r in master.iterrows():
+        sb_name = r.get("player_sb")
+        if pd.isna(sb_name):
+            continue
+        entry = lookup.get(normalize_name(sb_name))
+        if entry is None:
+            continue
+        pid, teams = entry
+        if r["squad_n"] not in teams:
+            raise AssertionError(
+                f"StatsBomb squad mismatch for master {r['player']!r} "
+                f"(player_sb={sb_name!r}): lineup team(s) {sorted(teams)} "
+                f"vs master squad {r['squad_n']!r}")
+        if pid in pid_to_row:
+            raise AssertionError(
+                f"StatsBomb player_id {pid} ({sb_name!r}) attaches to more "
+                f"than one master row")
+        pid_to_row[pid] = idx
+        resolved[idx] = pid
+
+    by_pid = sb_positions.set_index("player_id")
+    for idx in np.flatnonzero(np.isfinite(resolved)):
+        pid = int(resolved[idx])
+        if pid not in by_pid.index:
+            continue
+        master.at[idx, "position_v2"] = by_pid.loc[pid, "position_v2"]
     return master
 
 
@@ -796,7 +964,16 @@ def main():
     print("Merging StatsBomb event features...")
     master = merge_statsbomb_event_features(master, sb_events)
     assert len(master) == 680, f"P3 merge changed row count to {len(master)}"
-    print(f"  + {len(P3_MASTER_COLUMNS)} event-derived columns attached")
+    print(f"  + {len(P3_MASTER_COLUMNS) + len(P6_MASTER_COLUMNS)} "
+          f"event-derived columns attached")
+
+    # ---- P6: StatsBomb most-played position groups (position_v2) ----
+    print("\nParsing StatsBomb lineups -> most-played positions...")
+    sb_positions = statsbomb_parser.parse_lineups(DATA_DIR / "statsbomb")
+    print(f"  {len(sb_positions)} StatsBomb players with lineup data")
+    master = merge_position_v2(master, sb_positions)
+    print(f"  position_v2 attached "
+          f"({master['position_v2'].nunique()} distinct groups)")
 
     # ---- Assemble + write output ----
     print("\nComputing per-90 rates...")
@@ -821,6 +998,23 @@ def main():
     assert len(set(p3_present)) == len(p3_present), "Duplicate P3 columns"
     print(f"P3 StatsBomb event-derived columns: {len(p3_present)} present "
           f"(of {len(P3_MASTER_COLUMNS)}), {len(master.columns)} total columns")
+
+    # P6 verification: 23 P6 columns + position_v2 + the data-fix invariants.
+    p6_present = [c for c in P6_MASTER_COLUMNS if c in master.columns]
+    assert len(p6_present) == len(P6_MASTER_COLUMNS), (
+        f"Missing P6 columns: {set(P6_MASTER_COLUMNS) - set(p6_present)}")
+    assert len(set(p6_present)) == len(p6_present), "Duplicate P6 columns"
+    assert not master[p6_present].isna().any().any(), "NaN in P6 columns"
+    assert master["conversion_pct"].max() <= 1.0, (
+        "conversion_pct overflow (gls/sh with sh=0)")
+    assert master["dribble_success_pct"].max() <= 1.0, (
+        "dribble_success_pct overflow (succ/att with att=0)")
+    dist = master["position_v2"].value_counts()
+    assert dist.sum() == len(master), "position_v2 must resolve every player"
+    print(f"P6 StatsBomb event-derived columns: {len(p6_present)} present "
+          f"(of {len(P6_MASTER_COLUMNS)}), {len(master.columns)} total columns")
+    print("position_v2 distribution: " + ", ".join(
+        f"{g}={int(dist.get(g, 0))}" for g in ("GK", "CB", "FB/WB", "MF", "Wide", "ST")))
 
     # Final summary
     print(f"\nFinal dataset: {len(master)} rows x {len(master.columns)} columns")

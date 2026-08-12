@@ -23,7 +23,7 @@ python -m pytest tests/ -k "determinism" -v   # specific test
 
 # v2 data pipeline (WC 2022 rebuild)
 python scripts/download_statsbomb.py          # fetch StatsBomb Open Data into data/statsbomb/
-python statsbomb_parser.py                    # parse raw events -> 21 event-derived features (P3)
+python statsbomb_parser.py                    # parse raw events -> 44 event-derived features (P3+P6) + parse_lineups -> position_v2
 python build_master_dataset.py                # FBref + StatsBomb -> data/wc2022_players_master.csv
 
 # Lint
@@ -48,10 +48,10 @@ tests/              (pytest + conftest.py fixture, one file per module)
 models/             (gitignored: persisted scalers, KMeans, metadata.json)
 
 v2 data pipeline (WC 2022 rebuild, in parallel — not yet wired into app.py)
-statsbomb_parser.py   (pure parser: StatsBomb events -> 21 event-derived features, P3)
+statsbomb_parser.py   (pure parser: StatsBomb events -> 44 event-derived features [21 P3 + 23 P6]; parse_lineups -> position_v2)
 scripts/download_statsbomb.py  (fetch raw StatsBomb Open Data into data/statsbomb/, gitignored)
-build_master_dataset.py  (FBref CSVs + StatsBomb events -> data/wc2022_players_master.csv)
-tests/test_statsbomb_parser.py  (35 parser tests, incl. locked P3 contract)
+build_master_dataset.py  (FBref CSVs + StatsBomb events -> data/wc2022_players_master.csv; merge_position_v2)
+tests/test_statsbomb_parser.py  (52 parser tests, incl. locked P3+P6 contracts + position_v2)
 data/statsbomb/       (gitignored raw JSON: events/, lineups/, matches/)
 ```
 
@@ -91,7 +91,7 @@ Two datasets coexist, one per app version:
 
 **v1 legacy** — `data/players_data_light-2025_2026.csv`: 2,839 rows × 53 columns, Big 5 European leagues (2025/26). After Min≥270 filter: 2,183 rows, ~155 GK, ~2,028 outfield (GK count drops from 194 to 155 because GKs tend to accrue fewer minutes than outfield players). FBref export shape with comma-flattened multi-index headers. GK-only stats (Saves, Save%, GA, CS, etc.) are empty for outfield rows.
 
-**v2 rebuild** — `data/wc2022_players_master.csv`: 217 rows × 167 columns (146 pre-P3 + 21 P3 event-derived), FIFA World Cup 2022 (StatsBomb competition 43 / season 106). Built by `build_master_dataset.py` from FBref CSVs + StatsBomb events; 217 eligible players after Min≥270 filter. **P3 complete** — 21 locked event-derived features (pressures, recoveries, touches by zone, GK metrics, etc.) merged in at commit `7ccb424`. Raw StatsBomb Open Data lives in `data/statsbomb/` (gitignored; reproducible via `scripts/download_statsbomb.py`).
+**v2 rebuild** — `data/wc2022_players_master.csv`: 217 rows × 192 columns (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`), FIFA World Cup 2022 (StatsBomb competition 43 / season 106). Built by `build_master_dataset.py` from FBref CSVs + StatsBomb events; 217 eligible players after Min≥270 filter. **P3+P6 complete** — 44 locked event-derived features: P3 (pressures, recoveries, touches by zone, GK metrics) at `7ccb424`, P6 (passing, defending/duels, shots/xG/npxG, box/final-third touches, penalties) + `position_v2` (6 groups from most-played StatsBomb lineup position: GK=28, CB=59, FB/WB=36, MF=55, Wide=21, ST=18) on branch `statsbomb-parser`. Raw StatsBomb Open Data lives in `data/statsbomb/` (gitignored; reproducible via `scripts/download_statsbomb.py`).
 
 Source FBref CSVs (`wc2022_standard.csv`, `wc2022_shooting.csv`, `wc2022_miscellaneous.csv`, `wc2022_gk.csv`) remain in `data/` as inputs to the v2 build.
 
@@ -156,6 +156,14 @@ The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /d
 ## Changelog (Session Chronicle)
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
+
+### 2026-08-12 — P6 complete: position-scoped features + position_v2 (branch `statsbomb-parser`)
+- **P6 RESOLVED:** 23 locked event-derived features (passing, defending/duels, shots/xG/npxG, box/final-third touches, penalty GK) + `parse_lineups()`/`position_v2` (6 groups) → master **217 rows × 192 cols**. Data fixes: `conversion_pct` overflow (sh==0 → 0.0), `save_pct`/`shots_on_target_pct` guarded, `dribble_success_pct` added, fully-null `pkwon`/`pkcon` dropped.
+- **Correctness fix in `parse_lineups`:** the final-whistle clock is read from the match's events file (`max(minute*60 + second)` — official match clock, exact through stoppage; event `timestamp` resets at halftime and must NOT be used), falling back to max explicit lineup endpoint only if events missing. The old lineups-only approach undercounted the match end by a ~9 min median, which CAN flip duration-weighted position assignments (MF 56→55, ST 17→18). Regression test: `test_parse_lineups_final_whistle_from_events`.
+- **position_v2 real distribution (authoritative):** GK=28, CB=59, FB/WB=36, MF=55, Wide=21, ST=18 (sums to 217; supersedes the plan's 28/59/35/54/22/19 and pre-fix 28/59/36/56/21/17). Rodri = CB is data-correct (played RCB in all 4 Spain matches).
+- **New modules/columns:** `P6_COUNT_FEATURES`/`P6_RAW_KEYS`/`P6_MASTER_COLUMNS` (23), `_P6_COUNT_MAP` (17), `_P6_GK_COLUMNS=("penalty_save_pct",)`, `parse_lineups` (829 rows), `merge_position_v2`. P3 contract untouched (18/7/21).
+- **Docs updated:** `PROJECT_STATE.md` (P6 row, 217×192, next = P7–P9), `ARCHITECTURE.md` §11, `TASK_BACKLOG.md` (V2-DATA extended to P3+P6; DATA-01 SUBSMED), `DATA_SOURCE_MAPPING.md` (22 rows → StatsBomb canonical), `FEATURE_VALIDATION.md` (status flips + P6 Implementation Notes). Spec's 2 missing striker archetypes (Complete Forward, False 9) landed at commit `18ebbd5` (20/20).
+- **Tests:** 52 parser tests, 88/88 full suite, ruff clean.
 
 ### 2026-08-12 — Phase A: v2 design docs committed, main test suite complete
 - **Committed:** `PLAYSTYLE_SPEC.md`, `DATA_SOURCE_MAPPING.md`, `FEATURE_VALIDATION.md` moved from untracked repo-root files into `docs/01-product/` (docs taxonomy). `PROJECT_STATE.md` references retargeted to `01-product/...`.

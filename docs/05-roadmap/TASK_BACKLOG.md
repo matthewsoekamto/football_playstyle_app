@@ -42,13 +42,13 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 
 ## MEDIUM
 
-### V2-DATA: StatsBomb event parser (P3) — ✅ RESOLVED
-- **Status:** RESOLVED 2026-08-07 (commit `7ccb424`). `statsbomb_parser.py` produces 21 locked event-derived features (pressures, recoveries, touches by zone, GK metrics, etc.) from StatsBomb Open Data; `build_master_dataset.py` merges them into `data/wc2022_players_master.csv` (217 rows × 167 cols). See `PROJECT_STATE.md` v2 roadmap (P1–P5 data pipeline complete; P6–P9 ML/app still pending) and `ARCHITECTURE.md` §11.
-- **Tests:** 35 parser tests in `tests/test_statsbomb_parser.py` lock the contract, zone boundaries, GK heuristics, merge gating, and real-dataset cardinality.
+### V2-DATA: StatsBomb event parser + position-scoped features (P3 + P6) — ✅ RESOLVED
+- **Status:** RESOLVED. **P3** (2026-08-07, commit `7ccb424`): `statsbomb_parser.py` produces 21 locked event-derived features (pressures, recoveries, touches by zone, GK metrics, etc.). **P6** (2026-08-12, branch `statsbomb-parser`): 23 more event-derived features (passing, defending/duels, shots/xG/npxG, box/final-third touches, penalties) + `parse_lineups()`/`position_v2` (6 groups from most-played StatsBomb lineup position) + data fixes (`conversion_pct` overflow, `dribble_success_pct`, dropped fully-null `pkwon`/`pkcon`). `build_master_dataset.py` merges everything into `data/wc2022_players_master.csv` (**217 rows × 192 cols**; position_v2 distribution GK=28, CB=59, FB/WB=36, MF=55, Wide=21, ST=18). See `PROJECT_STATE.md` v2 roadmap (P1–P6 data pipeline complete; P7–P9 ML/app still pending) and `ARCHITECTURE.md` §11.
+- **Tests:** 52 parser tests in `tests/test_statsbomb_parser.py` lock both contracts, zone boundaries, GK heuristics, merge gating, `position_v2` derivation, and real-dataset cardinality/distribution.
 
 ### DATA-01: Integrate possession/passing stats into the pipeline
 - **Priority:** Medium | **Difficulty:** High | **Impact:** High (materially richer playstyle signal) | **Effort:** ~3-5 days
-- **Status:** v2 scoped. The original scraper (`fetch_possession_stats.py`) has been deleted in v1.0 cleanup. A new data-collection mechanism is needed. **Note:** the v2 rebuild largely supersedes this — the P3 StatsBomb parser already delivers event-derived possession/passing-adjacent features (see V2-DATA above, `ARCHITECTURE.md` §11).
+- **Status:** ✅ **SUBSMED by V2-DATA.** The P6 StatsBomb parser now delivers the full possession/passing/defending feature families event-derived (passes, progressive passes, completion, key/through-ball/switches, into-box/final-third, duels, pressures, carries, touches-by-zone) — see V2-DATA above and `ARCHITECTURE.md` §11. No new scraper or FBref download is needed.
 - **Dependencies:** TEST-01 (the scaler fragility ML-01 is now resolved — see ADR-009)
 - **Files affected:** `data_loader.py` (new loader/merge step), `model_engine.py` (`OUTFIELD_FEATURES`, `OUTFIELD_ARCHETYPES` re-tuning), possibly new scraper or alternate data source
 - **Acceptance criteria:** Possession/passing stats join the outfield feature set via the same per-90 normalization pipeline; `OUTFIELD_ARCHETYPES` centroid targets are re-validated (adding dimensions changes clustering geometry — this is not a drop-in change); resulting clusters are manually sanity-checked.

@@ -15,7 +15,7 @@ Core principles:
 - Reproducible feature engineering
 - Event-derived advanced metrics
 
-**Principle: When a feature exists in both FBref and StatsBomb, FBref is the canonical source. StatsBomb is only used to supply metrics unavailable in FBref.**
+**Principle (revised at P6): When a feature exists in both FBref and StatsBomb, the source actually present in the v2 master is canonical.** The v2 download only includes the FBref standard/shooting/miscellaneous/GK tables, so passing, defending, possession and xG-family features default to StatsBomb (P6 event-derived); FBref remains canonical where its tables exist (Gls, Ast, Saves, Save%, Int, TklW, carries, dribbles, crosses, fouls).
 
 ---
 
@@ -66,15 +66,15 @@ Core principles:
 
 ## v2 (Current Development)
 
-**Status:** Active — Phase 2: Data Pipeline Implementation
+**Status:** Active — Phase 3: Position-Scoped Clustering (P7)
 
 ### Current Phase
 
-**Phase 2 — Data Pipeline Implementation**
+**Phase 3 — Position-Scoped KMeans Engine (P7)**
 
-Current objective: Build the hybrid FBref + StatsBomb dataset that powers the new clustering engine.
+Current objective: Fit one KMeans per position group on the P6 master, label clusters against the 20 archetypes, and persist to `models_v2/`.
 
-**P1–P5 (data pipeline) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`. `data/wc2022_players_master.csv` is now 217 rows × 167 cols (146 pre-P3 + 21 P3 event-derived). Remaining: P6–P9 (feature engineering, position-scoped clustering, evaluation, visualization).
+**P1–P6 (data pipeline + P6 feature engineering) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` landed on branch `statsbomb-parser`. `data/wc2022_players_master.csv` is now 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`). Remaining: P7–P9 (position-scoped clustering, evaluation, visualization).
 
 ### Goal
 
@@ -143,6 +143,7 @@ FBref Loader                StatsBomb Parser
 | **P3 (StatsBomb parser)** | `statsbomb_parser.py` → 21 locked event-derived features (`7ccb424`); downloader `scripts/download_statsbomb.py` |
 | **P4 (player matching)** | FBref↔StatsBomb identity bridge (name+squad, `normalize_name`) in `build_master_dataset.py` |
 | **P5 (merge dataset)** | `data/wc2022_players_master.csv` — 217 rows × 167 cols |
+| **P6 (position-scoped features)** | 23 more event-derived features (passing, defending, duels, shots/xG/npxG, box/final-third touches, penalties) + `parse_lineups`/`position_v2` (6 groups from StatsBomb lineups) → master 217 × 192; data fixes (`conversion_pct` overflow, `dribble_success_pct`, dropped `pkwon`/`pkcon`) |
 
 ### Success Criteria (v2 Complete)
 
@@ -154,14 +155,14 @@ FBref Loader                StatsBomb Parser
 
 ### Next Tasks (v2 — Phase 3 onward)
 
-#### Data — ✅ DONE (P1–P5)
-P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), StatsBomb parser (`7ccb424`), player matching, and merge into `data/wc2022_players_master.csv` (217 rows × 167 cols).
+#### Data — ✅ DONE (P1–P6)
+P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), StatsBomb parser (`7ccb424`), player matching, and merge into `data/wc2022_players_master.csv`. P6 complete (branch `statsbomb-parser`): 23 more event-derived features + `position_v2` (most-played StatsBomb lineup position → GK/CB/FB-WB/MF/Wide/ST) → master 217 rows × 192 cols. **position_v2 distribution: GK=28, CB=59, FB/WB=36, MF=55, Wide=21, ST=18** (all 217 resolve; every group ≥ its k).
 
 #### ML
 | Priority | Task | Effort |
 |---|---|---|
-| **P6** | Feature engineering (position-scoped) | ~2 days |
-| **P7** | Cluster redesign (position-scoped KMeans) | ~3 days |
+| ~~**P6**~~ | ~~Feature engineering (position-scoped)~~ — ✅ DONE | — |
+| **P7** | Cluster redesign (position-scoped KMeans, `v2_model_engine.py`) | ~3 days |
 
 #### Application
 | Priority | Task | Effort |
@@ -192,4 +193,4 @@ P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), Stats
 
 ---
 
-*Updated 2026-08-07: P1–P5 (data pipeline) complete. Next update when P6–P9 land.*
+*Updated 2026-08-12: P1–P6 (data pipeline + position-scoped feature engineering) complete. Next update when P7–P9 land.*
