@@ -39,6 +39,51 @@ def _engine_frame(rows_per_group: int = 10, seed: int = 7) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _separable_group_frame(group: str, rows_per_cluster: int = 20, seed: int = 11) -> pd.DataFrame:
+    """One group's rows drawn from GROUP_K[group] well-separated Gaussian blobs.
+
+    Each cluster is offset +(c+1)*5.0 on EVERY feature, so after StandardScaler the
+    blobs sit ~50σ apart in every dimension — KMeans(k) recovers them exactly and
+    bootstrap refits are stable (ARI ~ 1). A single shifted feature would be drowned
+    by the remaining ~sqrt(dims) noise dims once scaled, so all features must carry
+    the separation. rows_per_cluster=20 makes a whole blob being absent from a
+    bootstrap sample effectively impossible (0.5**40).
+    """
+    feats = ve.GROUP_FEATURES[group]
+    k = ve.GROUP_K[group]
+    rng = np.random.default_rng(seed)
+    rows = []
+    for c in range(k):
+        offset = (c + 1) * 5.0
+        for i in range(rows_per_cluster):
+            row = {"player": f"{group}-{c}-{i}", "position_v2": group}
+            for f in feats:
+                row[f] = float(rng.normal(offset, 0.1))
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _group_bootstrap(frame: pd.DataFrame, group: str) -> dict:
+    """Fit one group (evaluate=False) and return its bootstrap stability dict."""
+    gdf, _ = ve._fit_group(frame, group, evaluate=False)
+    assert gdf is not None, f"group {group} failed to fit"
+    feats = ve.GROUP_FEATURES[group]
+    return ve.evaluate_bootstrap_stability(
+        gdf[feats].fillna(0).values,
+        gdf["cluster_id_v2"].values,
+        min(ve.GROUP_K[group], len(gdf) - 1),
+        prefix=group,
+    )
+
+
+BOOTSTRAP_KEYS = frozenset({
+    "bootstrap_ari_mean", "bootstrap_ari_std",
+    "bootstrap_silhouette_mean", "bootstrap_silhouette_std",
+    "bootstrap_davies_bouldin_mean", "bootstrap_davies_bouldin_std",
+    "bootstrap_degenerate_fraction",
+})
+
+
 # --- constant structure -----------------------------------------------------
 
 def test_group_order_and_k():
@@ -185,6 +230,66 @@ def test_import_graph_no_streamlit():
     assert "model_engine" not in new and "data_loader" not in new
 
 
+# --- bootstrap stability (P8) ------------------------------------------------
+
+def test_bootstrap_deterministic():
+    """Same input + same seed -> byte-identical bootstrap metrics."""
+    a = _group_bootstrap(_separable_group_frame("GK"), "GK")
+    b = _group_bootstrap(_separable_group_frame("GK"), "GK")
+    assert a == b
+
+
+def test_bootstrap_keys_and_ari_bounds():
+    """Uniform-noise data: full key set, ARI in [0,1], bounded std/degen, finite."""
+    res = _group_bootstrap(_engine_frame(), "GK")
+    assert set(res) == BOOTSTRAP_KEYS
+    assert 0.0 <= res["bootstrap_ari_mean"] <= 1.0
+    assert 0.0 <= res["bootstrap_ari_std"] <= 0.5  # max sample std for [0,1] data
+    assert 0.0 <= res["bootstrap_degenerate_fraction"] <= 1.0
+    assert np.isfinite(res["bootstrap_ari_mean"])
+    assert np.isfinite(res["bootstrap_ari_std"])
+
+
+def test_bootstrap_high_stability_on_separable():
+    """Well-separated blobs reproduce the deployed partition under resampling."""
+    for group in ("GK", "CB", "ST"):
+        res = _group_bootstrap(_separable_group_frame(group), group)
+        assert res["bootstrap_ari_mean"] >= 0.9, (group, res["bootstrap_ari_mean"])
+        assert res["bootstrap_degenerate_fraction"] <= 0.05, (group, res["bootstrap_degenerate_fraction"])
+
+
+def test_bootstrap_refit_variance_finite():
+    """Refit silhouette/DB on separable data are finite and near-optimal."""
+    res = _group_bootstrap(_separable_group_frame("GK"), "GK")
+    for key in ("bootstrap_silhouette_mean", "bootstrap_silhouette_std",
+                "bootstrap_davies_bouldin_mean", "bootstrap_davies_bouldin_std"):
+        assert np.isfinite(res[key]), key
+    assert res["bootstrap_silhouette_mean"] >= 0.9
+    assert res["bootstrap_davies_bouldin_mean"] <= 0.5
+
+
+def test_bootstrap_uniform_frame_is_low_stability():
+    """Uniform-noise data must NOT be reported as stable (ARI well below 1)."""
+    res = _group_bootstrap(_engine_frame(), "GK")
+    assert res["bootstrap_ari_mean"] < 0.7
+
+
+def test_bootstrap_integration_does_not_change_clustering():
+    """evaluate=True runs bootstrap through _fit_group but leaves the partition alone."""
+    base = ve.group_and_cluster(_engine_frame())
+    ev = ve.group_and_cluster(_engine_frame(), evaluate=True)
+    assert base["cluster_id_v2"].tolist() == ev["cluster_id_v2"].tolist()
+    assert base["playstyle_cluster_v2"].tolist() == ev["playstyle_cluster_v2"].tolist()
+
+
+def test_bootstrap_small_group_returns_nan():
+    """n<3 and k>=n are skipped with an all-NaN dict, never a raise."""
+    tiny = ve.evaluate_bootstrap_stability(np.zeros((2, 4)), np.array([0, 1]), 1, prefix="tiny")
+    assert all(np.isnan(v) for v in tiny.values())
+    kge = ve.evaluate_bootstrap_stability(np.zeros((4, 4)), np.array([0, 0, 1, 1]), 4)
+    assert all(np.isnan(v) for v in kge.values())
+
+
 # --- real dataset (guarded) -------------------------------------------------
 
 @REAL_DATASET
@@ -221,3 +326,17 @@ def test_master_labels_not_degenerate():
         g = df[df["position_v2"] == group]
         labeled = g["playstyle_cluster_v2"].isin(ve.GROUP_ARCHETYPES[group])
         assert labeled.any(), f"{group} produced no archetype labels (all Mixed Profile)"
+
+
+@REAL_DATASET
+def test_master_bootstrap_stability_runs():
+    """Bootstrap stability is finite and in-range on the real WC 2022 master."""
+    master = pd.read_csv(MASTER_PATH)
+    clustered = ve.group_and_cluster(master)
+    for group in ve.GROUP_ORDER:
+        gdf = clustered[clustered["position_v2"] == group]
+        res = _group_bootstrap(gdf, group)
+        assert set(res) == BOOTSTRAP_KEYS
+        assert 0.0 <= res["bootstrap_ari_mean"] <= 1.0
+        assert 0.0 <= res["bootstrap_degenerate_fraction"] <= 1.0
+        assert np.isfinite(res["bootstrap_ari_mean"])

@@ -23,7 +23,7 @@ preserves v1's 3.5-at-6-features semantics as dimensionality grows.
 
 Usage
 -----
-python v2_model_engine.py --evaluate   # fit + log per-group silhouette / Davies-Bouldin
+python v2_model_engine.py --evaluate   # fit + log per-group silhouette/DB + bootstrap stability (P8)
 python v2_model_engine.py --persist    # fit + evaluate + save artifacts to models_v2/
 
 Persistence lives in ``models_v2/`` (never touches the v1 ``models/`` directory):
@@ -42,7 +42,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from sklearn.metrics import davies_bouldin_score, silhouette_score
+from sklearn.metrics import adjusted_rand_score, davies_bouldin_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,10 @@ MODELS_DIR_V2 = Path("models_v2")
 
 RANDOM_STATE = 42
 N_INIT = 10
+# P8 bootstrap stability: number of same-n resample+refit iterations per group.
+# 100 gives stable mean/std estimates; the whole run is ~24s on the real master
+# (6 groups x 100 KMeans refits) — acceptable for a headless --evaluate diagnostic.
+BOOTSTRAP_ITERATIONS = 100
 # v1's threshold was 3.5 in a 6-feature space. In σ-space, distance grows ~sqrt(#features),
 # so the threshold scales accordingly (3.5*sqrt(n/6) == 1.43*sqrt(n)).
 LABEL_THRESHOLD = 3.5
@@ -389,6 +393,128 @@ def evaluate_clustering(
     return {"silhouette_score": sil, "davies_bouldin_score": db}
 
 
+def evaluate_bootstrap_stability(
+    data: np.ndarray,
+    reference_labels: np.ndarray,
+    k: int,
+    prefix: str = "",
+) -> dict[str, float]:
+    """Per-group bootstrap refit stability (P8) — evidence, not a higher score.
+
+    Draws ``BOOTSTRAP_ITERATIONS`` same-n bootstrap samples (with replacement),
+    refits the full ``_fit_group`` preprocessing (``StandardScaler`` + seeded
+    ``KMeans(k)``) on each sample, predicts labels for ALL original players with
+    the refit model, and returns:
+
+    - mean/std adjusted-Rand-index vs the reference partition — how reproducible
+      the deployed clustering is under resampling (the primary stability metric);
+    - mean/std silhouette + Davies-Bouldin on each bootstrap sample — the
+      refit-variance of the quality metrics themselves (secondary diagnostics);
+    - the fraction of iterations whose full-n prediction collapsed to a single
+      cluster or a <=1-player cluster (degeneracy guard — a real risk at small n,
+      e.g. ST n=18).
+
+    Every stochastic step (resample + KMeans refit) is seeded from ``RANDOM_STATE``,
+    so the result is deterministic run-to-run (Constitution §8 / ML_GUIDELINES §10 —
+    no bare ``random_state=None``). Silhouette/DB are NOT computed on an iteration
+    whose sample-fit labels have <2 clusters (``silhouette_score`` would raise);
+    such iterations still contribute ARI (=0 for a collapsed refit). Refit silhouette
+    is slightly deflated because bootstrap samples contain duplicate rows (a
+    duplicated point has a "twin" at distance 0) — an accepted, documented artifact.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        RAW (unscaled) feature matrix — the scaler is REFIT on each bootstrap sample.
+    reference_labels : np.ndarray
+        Cluster label per player from the deployed (full-data) partition.
+    k : int
+        Number of clusters to refit (already clamped to the group size).
+    prefix : str
+        Optional label for log output (e.g. "GK" or "CB").
+
+    Returns
+    -------
+    dict[str, float]
+        Seven bootstrap metrics; all NaN if the input fails the guards below.
+    """
+    n = data.shape[0]
+    if n < 3 or k < 1 or k >= n or len(np.unique(reference_labels)) < 2:
+        logger.warning("Bootstrap stability skipped for '%s' (n=%d, k=%d)", prefix, n, k)
+        return {
+            "bootstrap_ari_mean": np.nan,
+            "bootstrap_ari_std": np.nan,
+            "bootstrap_silhouette_mean": np.nan,
+            "bootstrap_silhouette_std": np.nan,
+            "bootstrap_davies_bouldin_mean": np.nan,
+            "bootstrap_davies_bouldin_std": np.nan,
+            "bootstrap_degenerate_fraction": np.nan,
+        }
+
+    ari_scores = np.empty(BOOTSTRAP_ITERATIONS)
+    sil_scores = np.empty(BOOTSTRAP_ITERATIONS)
+    db_scores = np.empty(BOOTSTRAP_ITERATIONS)
+    n_scored = 0
+    degenerate = 0
+
+    for b in range(BOOTSTRAP_ITERATIONS):
+        # Two independent seed streams, both derived from RANDOM_STATE: resample and
+        # KMeans refit (offset by BOOTSTRAP_ITERATIONS so the ranges never collide).
+        rng = np.random.default_rng(RANDOM_STATE + b)
+        sample = data[rng.integers(0, n, size=n)]  # same-n bootstrap sample
+        scaler_b = StandardScaler()
+        sample_scaled = scaler_b.fit_transform(sample)
+        kmeans_b = KMeans(
+            n_clusters=k,
+            random_state=RANDOM_STATE + BOOTSTRAP_ITERATIONS + b,
+            n_init=N_INIT,
+        )
+        refit_labels = kmeans_b.fit_predict(sample_scaled)
+        # Assign all original players to the refit clusters — no label alignment
+        # needed because ARI is permutation-invariant (a player omitted by the
+        # bootstrap still gets a prediction).
+        pred_labels = kmeans_b.predict(scaler_b.transform(data))
+
+        ari_scores[b] = adjusted_rand_score(reference_labels, pred_labels)
+
+        # Degeneracy is measured on the full-n prediction: a KMeans fit on its own
+        # training sample essentially never has <2 clusters, but a full-n prediction
+        # can collapse to a singleton/empty cluster — the real small-n failure mode.
+        if np.unique(pred_labels).size < 2 or np.bincount(pred_labels).min() <= 1:
+            degenerate += 1
+
+        if len(np.unique(refit_labels)) >= 2:
+            sil_scores[n_scored] = silhouette_score(sample_scaled, refit_labels)
+            db_scores[n_scored] = davies_bouldin_score(sample_scaled, refit_labels)
+            n_scored += 1
+
+    result = {
+        "bootstrap_ari_mean": float(np.mean(ari_scores)),
+        "bootstrap_ari_std": float(np.std(ari_scores, ddof=1)),
+        "bootstrap_silhouette_mean": float(np.mean(sil_scores[:n_scored])) if n_scored else np.nan,
+        "bootstrap_silhouette_std": float(np.std(sil_scores[:n_scored], ddof=1)) if n_scored > 1 else np.nan,
+        "bootstrap_davies_bouldin_mean": float(np.mean(db_scores[:n_scored])) if n_scored else np.nan,
+        "bootstrap_davies_bouldin_std": float(np.std(db_scores[:n_scored], ddof=1)) if n_scored > 1 else np.nan,
+        "bootstrap_degenerate_fraction": degenerate / BOOTSTRAP_ITERATIONS,
+    }
+
+    label = f"[{prefix}] " if prefix else ""
+    logger.info(
+        "%sBootstrap ARI:        %.4f ± %.4f (B=%d)",
+        label, result["bootstrap_ari_mean"], result["bootstrap_ari_std"], BOOTSTRAP_ITERATIONS,
+    )
+    logger.info(
+        "%sRefit Silhouette:     %.4f ± %.4f",
+        label, result["bootstrap_silhouette_mean"], result["bootstrap_silhouette_std"],
+    )
+    logger.info(
+        "%sRefit Davies-Bouldin: %.4f ± %.4f",
+        label, result["bootstrap_davies_bouldin_mean"], result["bootstrap_davies_bouldin_std"],
+    )
+    logger.info("%sBootstrap degenerate: %.4f", label, result["bootstrap_degenerate_fraction"])
+    return result
+
+
 def _compute_dataset_hash(filepath: str) -> str:
     """SHA256 hash of the dataset file for change detection."""
     with open(filepath, "rb") as f:
@@ -429,6 +555,12 @@ def _fit_group(gdf, group, evaluate=False):
 
     if evaluate and scaled.shape[0] >= 3 and len(np.unique(gdf["cluster_id_v2"])) >= 2:
         evaluate_clustering(scaled, gdf["cluster_id_v2"].values, prefix=group)
+        evaluate_bootstrap_stability(
+            data.values,  # raw, unscaled — the scaler is REFIT per bootstrap sample
+            gdf["cluster_id_v2"].values,
+            k,
+            prefix=group,
+        )
 
     artifacts = {"scaler": scaler, "kmeans": kmeans, "features": features}
     return gdf, artifacts

@@ -143,3 +143,20 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Each record below is recons
 **Why:** (A) would work but produces an opaque, non-human-readable selector value in `st.selectbox`. (B) keeps the common case (a unique name) clean and only adds disambiguation where genuinely needed.
 
 **Tradeoffs:** If the *same* player at the *same* squad ever appears twice (not currently possible given the dataset's shape, but not structurally prevented), (B) would not disambiguate. Not a current risk; noted for completeness.
+
+---
+
+## ADR-010: Bootstrap stability as the v2 clustering evaluation metric (P8)
+
+**Context:** P7's `--evaluate` logged per-group silhouette + Davies-Bouldin, but low silhouette on ST/Wide (18–21 players × 23–34 dims) left "is the deployed partition trustworthy?" unanswered. k is fixed by the product (ADR-009 / `ML_GUIDELINES.md` §8), so the evaluation question is *stability*, not k-selection. Per `ARCHITECTURE.md` §11 risks and `TASK_BACKLOG.md` P8, the goal is stability evidence, not higher scores.
+
+**Options considered:**
+- (A) Co-membership / consensus matrix (Monti et al.): rich pairwise signal but designed to *select* k, not validate a fixed partition; needs a summarization step and yields no single per-group scalar for the log.
+- (B) Mean pairwise ARI among the bootstrap refits (self-consistency): O(B²) and unanchored from the deployed partition — doesn't answer "does the shipped clustering reproduce under resampling?"
+- (C) **Full-n ARI vs the deployed partition** (chosen): per group, draw B=100 same-n bootstrap samples (with replacement); refit the exact production preprocessing (`fillna(0) → StandardScaler → KMeans(k, seeded, n_init=10)`) on each; predict labels for *all* original players with the refit model; score `adjusted_rand_score(deployed, predicted)`; aggregate mean ± std. Also report mean ± std refit silhouette/DB and a degenerate fraction (share of refits whose full-n prediction collapses to a ≤1-player cluster).
+
+**Chosen:** (C) in `v2_model_engine.evaluate_bootstrap_stability`.
+
+**Why:** ARI is permutation-invariant (no label alignment needed), chance-corrected, and a single interpretable scalar per group. Predict-on-full-n avoids the small-n pitfall that defeats sample-restricted ARI: with ST n=18, k=4, a whole cluster is absent from a bootstrap sample with non-negligible probability (~e⁻¹ per player), so a sample-restricted comparison would pit a k−1-cluster reference against a k-cluster refit — apples to oranges. Full-n prediction never has this problem because the deployed partition always carries all k clusters.
+
+**Tradeoffs:** Partition-level, not per-player, evidence (per-player *label* stability across refits is a possible future extension, but would require re-running the archetype-labeling step inside each iteration). Refit silhouette is slightly deflated because bootstrap samples contain duplicate rows (a duplicated point has a "twin" at distance 0). The degenerate fraction is a real small-n signal — ST collapses a cluster in 39% of refits — reported as a limitation, not a gate, consistent with the diagnostic-not-gating framing of `ML_GUIDELINES.md` §9.

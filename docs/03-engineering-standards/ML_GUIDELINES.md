@@ -47,15 +47,15 @@ This is **unsupervised, descriptive** clustering â€” there is no train/test
 
 ## 9. Evaluation Metrics
 
-**Currently: none are computed.** The project has no silhouette score, Davies-Bouldin index, or Calinski-Harabasz index logged anywhere. This is a real gap for a "portfolio-quality" clustering project. Recommended (not yet implemented â€” see `TASK_BACKLOG.md` ML-04):
+Both engines compute per-group silhouette + Davies-Bouldin via `logging` (not `print`, per `STYLE_GUIDE.md`): v1 in `model_engine.evaluate_clustering` (ML-04), v2 in `v2_model_engine.evaluate_clustering` (P7). The v2 `--evaluate` additionally computes **bootstrap stability / refit-variance** (P8, `v2_model_engine.evaluate_bootstrap_stability`): per `position_v2` group, B=100 same-n bootstrap resamples, each refits the group's exact production preprocessing (`fillna(0) -> StandardScaler -> KMeans(k, seeded, n_init=10)`) and predicts labels for all original players, scored by `adjusted_rand_score` vs the deployed partition. Aggregated as mean +/- std ARI, mean +/- std refit silhouette/DB, and a degenerate fraction (see `DECISIONS.md` ADR-010).
 
-- **Silhouette score** per group (outfield, GK), computed on the scaled feature matrix right after `kmeans_out.fit_predict(...)` / `kmeans_gk.fit_predict(...)`, logged (via `logging`, not `print`, per `STYLE_GUIDE.md`) whenever `group_players` runs outside a cached Streamlit context (e.g. in the `__main__` block of `model_engine.py`).
-- **Davies-Bouldin index** as a secondary check â€” lower is better, useful for catching a degenerate run where two clusters have effectively merged.
-- These are **diagnostic**, not gating â€” because k is fixed by product requirements (Â§8 above), a low silhouette score doesn't mean "change k," it means "the 5-archetype framing may not fit this season's data well," which is a product/ML discussion, not an automatic code branch.
+- These are **diagnostic**, not gating -- because k is fixed by product requirements (Section 8 above), a low silhouette score doesn't mean “change k,” it means the archetype framing may not fit this season's data well, which is a product/ML discussion, not an automatic code branch.
+- Bootstrap stability is the evidence for *how much to trust the fixed partition*: low silhouette on high-dim small-n groups (ST/Wide) is expected, and the bootstrap quantifies the resulting refit instability (e.g. ST ARI 0.45, 39% of refits collapse a cluster) -- reported as a limitation, not a blocker.
 
 ## 10. Random Seed & Reproducibility
 
 - Every stochastic operation must be seeded. Today that's exactly the two `KMeans(random_state=42, ...)` calls. Any new stochastic component (e.g. a future `train_test_split`, a bootstrap resampling for confidence intervals, a different clustering algorithm) must also take an explicit, documented seed â€” no bare `random_state=None` in project code, ever.
+- The v2 bootstrap stability evaluation (P8) follows the same rule: every resample uses `np.random.default_rng(RANDOM_STATE + b)` and every KMeans refit uses `random_state = RANDOM_STATE + BOOTSTRAP_ITERATIONS + b` -- the refit stream is offset by B so the two seed ranges never collide, and the whole evaluation is deterministic run-to-run (locked by `test_bootstrap_deterministic`).
 - Reproducibility also depends on **library versions** (`scikit-learn`'s KMeans implementation has changed defaults across versions â€” e.g. `n_init` default). `requirements.txt` currently only sets lower bounds (`scikit-learn>=1.3.0`). See `PERFORMANCE_GUIDE.md`/`SECURITY_GUIDE.md` for the broader pinning discussion; from an ML-correctness standpoint, an unpinned upper bound is a reproducibility risk worth resolving before calling the project "Production Ready."
 
 ## 11. Model Persistence

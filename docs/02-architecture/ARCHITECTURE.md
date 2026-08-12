@@ -186,9 +186,9 @@ Because all three are keyed only on a constant string filepath, cache invalidati
 
 Removed during v1.0 cleanup. The file had been a standalone FBref scraper, deliberately disconnected from the app's import graph. If possession stats are revisited in v2, a new data-collection pipeline should follow the existing dataset pattern.
 
-## 11. v2 Data Pipeline + Engine (WC 2022 Rebuild, P1–P7 complete)
+## 11. v2 Data Pipeline + Engine (WC 2022 Rebuild, P1–P8 complete)
 
-The v2 pipeline builds `data/wc2022_players_master.csv` (217 rows × 192 cols) from hybrid FBref + StatsBomb sources, and `v2_model_engine.py` clusters it by position group. **P6 (position-scoped feature engineering + `position_v2`) and P7 (position-scoped KMeans engine) are complete** on branch `statsbomb-parser`; P3 (event parser) landed at `7ccb424`; P1–P2 (FBref load/schema) and P4–P5 (player matching, merge) landed at `59ef406`.
+The v2 pipeline builds `data/wc2022_players_master.csv` (217 rows × 192 cols) from hybrid FBref + StatsBomb sources, and `v2_model_engine.py` clusters it by position group. **P6 (position-scoped feature engineering + `position_v2`), P7 (position-scoped KMeans engine), and P8 (bootstrap stability evaluation) are complete.** P1–P5 landed at `59ef406`/`7ccb424` on the pre-merge history; P6–P7 merged to `main` at `caffe0e`; P8 adds bootstrap evaluation to `--evaluate` (2026-08-12).
 
 ```
 data/statsbomb/ (raw Open Data, gitignored)
@@ -214,6 +214,8 @@ build_master_dataset.py ── FBref CSVs ──► data/wc2022_players_master.c
 - **Per-group fallback label (`GROUP_FALLBACK_LABEL`):** an over-threshold cluster gets its group's honest fallback — GK → **"Traditional Goalkeeper"** (2026-08-12 review-gate decision: the WC 2022 GK pool is homogeneous, 18/28 GKs land here and "Mixed Profile" was a poor output for 64% of a position; verified the quiet cluster is the stay-at-home keeper — below-mean on saves and every sweeping/distribution trait); other groups keep "Mixed Profile" for their rare (≤2) outliers.
 - **`_artifact_stem`:** the `FB/WB` group name contains a `/`, so artifact filenames sanitize it (`FB_WB_scaler.joblib`); a naive `Path / "FB/WB_scaler.joblib"` would write into a non-existent `models_v2/FB/` directory and crash `--persist`.
 - **Headless:** pure helpers (`_assign_labels_from_archetypes`, `evaluate_clustering`, `_compute_dataset_hash`) are copied verbatim from `model_engine.py` rather than imported, so the engine runs without Streamlit.
+
+**P8 (bootstrap stability / refit-variance, 2026-08-12):** `--evaluate` now runs `evaluate_bootstrap_stability` per group after silhouette/DB — B=100 same-n bootstrap resamples (seeded from `RANDOM_STATE`; refit stream offset by B; no bare `random_state=None` per ML_GUIDELINES §10), each refits the group's exact production preprocessing (`fillna(0) → StandardScaler → KMeans(k, seeded, n_init=10)`) and predicts labels for **all original players**. Reports **mean ± std ARI** vs the deployed partition (bootstrap stability), mean ± std refit silhouette/DB (refit-variance), and the **degenerate fraction** (share of refits whose full-n prediction collapses to a ≤1-player cluster). Real-data snapshot: GK ARI 0.633±0.287 (degen 0.01) · CB 0.344±0.183 (0.06) · FB/WB 0.203±0.129 (0.17) · MF 0.354±0.142 (0.12) · Wide 0.304±0.152 (0.26) · ST 0.454±0.191 (0.39). Diagnostic-not-gating per ML_GUIDELINES §9 — the ST/Wide instability it exposes is evidence to report (ST's 4-way split is provisional), not a blocker. See DECISIONS.md ADR-010.
 
 **Key design points:**
 - **Two-pass parse** (`parse_events`): first pass indexes shots by event id so GK `related_events` resolve to linked shots.

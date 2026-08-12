@@ -66,20 +66,24 @@ Core principles:
 
 ## v2 (Current Development)
 
-**Status:** Active — Phase 4: Evaluation (P8) scheduled
+**Status:** Active — Phase 4: Evaluation (P8) ✅ complete (P9 remaining)
 
 ### Current Phase
+
+**Phase 4 — Evaluation (P8) ✅ complete.**
+
+`--evaluate` now reports bootstrap stability per group: B=100 same-n resamples, each refitting the exact production preprocessing and scoring ARI vs the deployed partition (mean ± std ARI), plus refit silhouette/DB and a degenerate fraction. Real snapshot: GK 0.633±0.287 · CB 0.344±0.183 · FB/WB 0.203±0.129 · MF 0.354±0.142 · Wide 0.304±0.152 · ST 0.454±0.191 (degen 0.01–0.39). ST's 4-way split is **provisional** (highest refit instability); diagnostic, not a blocker. See `DECISIONS.md` ADR-010, `ARCHITECTURE.md` §11.
 
 **Phase 3 — Position-Scoped KMeans Engine (P7) ✅ complete.**
 
 One KMeans per position group is fit on the P6 master, clusters labeled against the 20 σ-offset archetypes, and the fitted scalers/centroids/labels persisted to `models_v2/` (SHA256-invalidated). `v2_model_engine.py` is headless (no streamlit import).
 
-**P1–P7 (data pipeline + feature engineering + clustering) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` and the P7 engine + GK label rename landed on branch `statsbomb-parser` (merged to `main` at `caffe0e`). `data/wc2022_players_master.csv` is 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`). Remaining: **P8–P9** (evaluation, visualization).
+**P1–P7 (data pipeline + feature engineering + clustering) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` and the P7 engine + GK label rename landed on branch `statsbomb-parser` (merged to `main` at `caffe0e`). `data/wc2022_players_master.csv` is 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`). Remaining: **P9** (visualization + wiring into `app.py`).
 
 ### Branch / merge status
 
 - **Phase B is merged into `main` (2026-08-12).** `statsbomb-parser` was fast-forwarded to `main` as 5 commits (`18ebbd5` · `8ec9b68` · `eecb0b3` · `6d0c564` · `caffe0e`); `main` = `origin/main` = `caffe0e`. The `statsbomb-parser` branch is kept in sync with `main`.
-- **Next: P8** (v2 evaluation: bootstrap stability) → **P9** (v2 visualization + wire into `app.py`).
+- **Next: P9** (v2 visualization + wire into `app.py`). (P8 — bootstrap stability evaluation — is complete on branch `worktree-p8-bootstrap-stability`.)
 
 ### Goal
 
@@ -150,6 +154,7 @@ FBref Loader                StatsBomb Parser
 | **P5 (merge dataset)** | `data/wc2022_players_master.csv` — 217 rows × 167 cols |
 | **P6 (position-scoped features)** | 23 more event-derived features (passing, defending, duels, shots/xG/npxG, box/final-third touches, penalties) + `parse_lineups`/`position_v2` (6 groups from StatsBomb lineups) → master 217 × 192; data fixes (`conversion_pct` overflow, `dribble_success_pct`, dropped `pkwon`/`pkcon`) |
 | **P7 (position-scoped KMeans)** | `v2_model_engine.py` (headless): per-group KMeans (k=2/3/3/5/3/4), σ-offset archetype labeling vs the 20 archetypes, `models_v2/` persistence (SHA256-invalidated, `_artifact_stem` sanitizes the `FB/WB` group name). Engine tests in `tests/test_v2_model_engine.py` (16 tests) |
+| **P8 (bootstrap stability eval)** | `evaluate_bootstrap_stability` in `v2_model_engine.py --evaluate`: B=100 same-n resamples per group, seeded refits of the exact production preprocessing, full-n predict, ARI vs the deployed partition → mean±std ARI + mean±std refit silhouette/DB + degenerate fraction. Real snapshot: GK 0.633 / CB 0.344 / FB-WB 0.203 / MF 0.354 / Wide 0.304 / ST 0.454; degen 0.01–0.39 (ST most unstable). Methodology in `DECISIONS.md` ADR-010. Engine tests → 25 |
 
 ### Success Criteria (v2 Complete)
 
@@ -167,7 +172,7 @@ P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), Stats
 #### Next (in order)
 | Priority | Task | Effort | Where |
 |---|---|---|---|
-| **P8** | Evaluation (silhouette, DB, **bootstrap stability**) on the v2 engine | ~1 day | `TASK_BACKLOG.md` P8 |
+| ~~**P8**~~ | ~~Evaluation (silhouette, DB, bootstrap stability) on the v2 engine~~ — ✅ DONE (2026-08-12, branch `worktree-p8-bootstrap-stability`) | ~1 day | `TASK_BACKLOG.md` P8 |
 | **P9** | Visualization updates + wire v2 clustering into `app.py` | ~2 days | `TASK_BACKLOG.md` P9 |
 
 ---
@@ -193,4 +198,4 @@ P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), Stats
 
 ---
 
-*Updated 2026-08-12: P1–P7 complete and merged to `main` (`caffe0e`). Next update when P8–P9 land.*
+*Updated 2026-08-12: P1–P7 merged to `main` (`caffe0e`); P8 bootstrap-stability evaluation complete on branch `worktree-p8-bootstrap-stability`. Next update when P9 lands.*
