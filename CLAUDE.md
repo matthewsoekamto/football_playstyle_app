@@ -49,13 +49,15 @@ tests/              (pytest + conftest.py fixture, one file per module)
 .github/workflows/  (CI: ruff check + pytest on push/PR to main)
 models/             (gitignored: persisted scalers, KMeans, metadata.json)
 
-v2 data pipeline + engine (WC 2022 rebuild, in parallel — not yet wired into app.py)
+v2 data pipeline + engine + visualization (WC 2022 rebuild — wired into app.py via a sidebar dataset selector, P9)
 statsbomb_parser.py   (pure parser: StatsBomb events -> 44 event-derived features [21 P3 + 23 P6]; parse_lineups -> position_v2)
 scripts/download_statsbomb.py  (fetch raw StatsBomb Open Data into data/statsbomb/, gitignored)
 build_master_dataset.py  (FBref CSVs + StatsBomb events -> data/wc2022_players_master.csv; merge_position_v2)
 v2_model_engine.py    (headless engine: per-position_v2 KMeans, 20 σ-offset archetype labels, models_v2/ persistence)
+v2_features.py        (app-facing layer: cached load, filter, position-scoped percentiles, σ-radar data)
 tests/test_statsbomb_parser.py  (52 parser tests, incl. locked P3+P6 contracts + position_v2)
-tests/test_v2_model_engine.py   (17 engine tests: determinism, provenance, persistence roundtrip, no-streamlit import)
+tests/test_v2_model_engine.py   (26 engine tests: determinism, provenance, persistence roundtrip, no-streamlit import, bootstrap, ST k-fix)
+tests/test_v2_features.py       (13 app-facing tests: filter, percentiles, unrepresented archetypes, radar data, chart smoke)
 models_v2/            (gitignored: v2 per-group scalers/KMeans, cluster_labels_v2.json, metadata_v2.json)
 data/statsbomb/       (gitignored raw JSON: events/, lineups/, matches/)
 ```
@@ -109,7 +111,7 @@ Source FBref CSVs (`wc2022_standard.csv`, `wc2022_shooting.csv`, `wc2022_miscell
 **Phase B is merged into `main`** (2026-08-12). P6 position-scoped features + `position_v2`, the P7 position-scoped KMeans engine, and the GK fallback-label rename were fast-forwarded to `main` as 5 commits (`18ebbd5` spec 19–20 · `8ec9b68` P6 · `eecb0b3` P7 · `6d0c564` GK label rename · `caffe0e` docs handoff); `main` = `origin/main` = `caffe0e`. The `statsbomb-parser` branch is kept in sync with `main` for reference.
 
 - **Engine output (217 players):** GK = Shot Stopper 10 · Traditional Goalkeeper 18 · CB = Ball-Playing 23 / Traditional 21 / Stopper 15 · FB/WB = Attacking 25 / Defensive 11 · MF = Deep-Lying 32 / Defensive Mid 21 / Shadow Striker 1 / Mixed 1 · Wide = Inverted 9 / Traditional 9 / Wide Playmaker 3 · ST = Complete Forward 10 / False 9 4 / Target Man 4. Reproduce with `python v2_model_engine.py --evaluate`.
-- **Next actions (in order):** ① **P9** visualization + wire into `app.py` (P8 — bootstrap stability evaluation — is RESOLVED, see changelog below). Tracked in `TASK_BACKLOG.md` (V2-MERGE RESOLVED / P8 RESOLVED / P9); full state in `docs/PROJECT_STATE.md`.
+- **Next actions:** v2 rebuild complete (P1–P9). No open tasks — optional follow-ups (multi-tournament dataset to populate the 5 unrepresented archetypes) are v3. Tracked in `TASK_BACKLOG.md` (V2-MERGE / P8 / P8.1 / P9 all RESOLVED); full state in `docs/PROJECT_STATE.md`.
 - **Persistence caveat:** v2 model artifacts invalidate on dataset-hash change only — a code change (labels/archetypes) silently serves stale labels on `--persist`; clear `models_v2/` and re-run `--persist` when the code changes.
 
 ## Mandatory Pre-Read (per DEVELOPMENT_WORKFLOW.md)
@@ -173,6 +175,12 @@ The CONVENTION: `00-constitution/PROJECT_CONSTITUTION.md > everything else in /d
 ## Changelog (Session Chronicle)
 
 This section accumulates findings, corrections, and clues from each session so the next session catches up without rework. Newest entries at top. Remove entries when the issue is fully resolved and no longer relevant context.
+
+### 2026-08-13 — P9 complete: v2 visualization wired into `app.py` (branch `worktree-p8-bootstrap-stability`)
+- **P9 RESOLVED:** new app-facing module **`v2_features.py`** (cached `load_v2_clustered_data` → fresh-fit `group_and_cluster`; `filter_v2_dataframe`; position-scoped `add_v2_percentiles`; `build_distribution_dataframe`; σ-space `build_player_radar_data`) + two new `charts.py` builders (`build_v2_distribution_chart`, `build_v2_archetype_radar_chart`). `app.py` gains a **sidebar dataset selector** (`st.sidebar.radio`, v2 default) that branches to the v2 `render_*` sections (table, archetype distribution, σ-radar playstyle explorer, position-scoped H2H) or falls through to the **byte-identical v1 body** (guarded by `st.stop()`). Recorded as **ADR-012**.
+- **The "solve it in the UI" directive (from P8.1's findings):** the 5 unrepresented archetypes (Sweeper Keeper, Wingback, Box-to-Box Midfielder, Advanced Playmaker, Poacher) are surfaced via `st.info` in the distribution — never silently dropped; duplicate labels (Attacking Fullback ×2, Deep-Lying Playmaker ×2) are summed by label and the explorer keys on `(position_v2, cluster_id_v2)`; the radar is **σ-space** (standardized vs the archetype prototype), which also resolves the mixed-units problem.
+- **Tests:** 13 new tests in `tests/test_v2_features.py` (filter, position-scoped percentiles, unrepresented archetypes, radar data, chart smoke). Full suite 126 passed + 1 pre-existing skip, ruff clean.
+- **Docs updated:** `DECISIONS.md` ADR-012, `ARCHITECTURE.md` (tree + purpose table + §11), `STREAMLIT_GUIDELINES.md` §3, `TASK_BACKLOG.md` P9, `PROJECT_STATE.md`, this entry.
 
 ### 2026-08-13 — ST k-reduction (4→3) + Poacher retained-unpopulated (branch `worktree-p8-bootstrap-stability`)
 - **ADR-011 RESOLVED:** P8's bootstrap exposed ST's over-split — k=4 on n=18 produced a 2-player Messi/Memphis micro-cluster and two clusters both labelled "False 9" (degen 0.39), while the 4th archetype (Poacher) never won a label (~6.3σ from Complete Forward, no WC 2022 striker fits it). Reduced `GROUP_K["ST"]` 4→3 → **ST = Complete Forward 10 / False 9 4 / Target Man 4**; ARI 0.454→0.526, degen 0.39→0.14. Poacher is **retained in the taxonomy but unpopulated** (owner decision: keep, don't drop) so the 20-archetype spec survives richer future data.

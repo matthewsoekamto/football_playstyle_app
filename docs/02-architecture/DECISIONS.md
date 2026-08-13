@@ -177,3 +177,25 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Each record below is recons
 **Why:** k=3 removes the micro-cluster and duplicate label (ST = Complete Forward 10 / False 9 4 / Target Man 4), raising ARI to 0.526 and cutting degeneracy to 0.14. Poacher is a real football concept (the pure box finisher) worth keeping in the taxonomy even though this 18-player tournament sample has no such player — dropping it would lose the concept from the spec, not just the code.
 
 **Tradeoffs:** A 4-archetype taxonomy with 3 clusters means one archetype (Poacher) is definitionally empty — it can never win a nearest-centroid match. The nearest margin is thin: the Complete Forward cluster sits 6.33σ from CF vs 6.47σ from Poacher (+0.14σ), so a future data change could flip that cluster's label to Poacher. When richer data arrives (club seasons, the v3 path), revisit: either restore ST k=4 and expect Poacher to populate, or formally retire it.
+
+---
+
+## ADR-012: v2 visualized in-app via a sidebar dataset selector (P9)
+
+**Context:** P9 brings the v2 (WC 2022) clustered output into `app.py`. v1 (Big-5 leagues: `comp`/`primary_position`, 10 archetypes) and v2 (WC 2022: `position_v2` 6 groups, 20 σ-offset archetypes) are incompatible datasets — they share no filter columns, archetypes, or percentiles — so they cannot share the existing single-page sections. `STREAMLIT_GUIDELINES.md` §3 states the app is single-page with no tabs/pages; multi-page is `DECISIONS.md`-worthy.
+
+**Options considered:**
+- (A) Sidebar radio dataset selector (v2 default), with version-specific filters + sections. No tabs/pages.
+- (B) `st.tabs(["v1", "v2"])` — cleaner separation, but a navigation change requiring an ADR anyway.
+- (C) `st.pages` multi-page — FUT-03, larger restructure.
+
+**Chosen:** (A) — `st.sidebar.radio("Dataset", ["v2 — World Cup 2022", "v1 — Big-5 Leagues 2025/26"], index=0)`. v2 is the default/landing view; v1 remains byte-identical behind the selector (guarded by `st.stop()` so no v1 section regresses).
+
+**Why:** A selector is a *filter* (which dataset), not *navigation*, so it fits the single-page design without a tabs/pages restructure. v2-default reflects that the v2 build is now the primary product; v1 is preserved (Constitution §18 rule 4: never delete functionality). The selector reduces the v1 diff to zero — the entire v1 body is untouched.
+
+**Also decided here (the "solve it in the UI" directive):**
+- **Unrepresented archetypes** (Sweeper Keeper, Wingback, Box-to-Box Midfielder, Advanced Playmaker, Poacher) are shown in the distribution as absent, with an `st.info` naming them — never silently dropped. The 20-archetype taxonomy stays canonical.
+- **Duplicate labels** (Attacking Fullback ×2, Deep-Lying Playmaker ×2) are summed by label in the distribution; the explorer keys on `(position_v2, cluster_id_v2)`, not the non-unique label.
+- **Radar in σ-space:** archetypes are σ-offsets and clustering is standardized, so the radar plots standardized (σ) profiles overlaid with the archetype prototype — which also resolves the mixed-units problem (per-90 vs % vs a spatial coordinate).
+
+**Tradeoffs:** Two datasets in one app means two filter sets and two render paths, cleanly separated by the selector + `st.stop()`. Fresh-fit on every cold start (`load_v2_clustered_data` fits `group_and_cluster`, <1s for 217 rows) trades a tiny startup cost for immunity to the "stale labels on code change" persistence caveat; `models_v2/` remains for the headless `--persist`/`--evaluate` workflow.

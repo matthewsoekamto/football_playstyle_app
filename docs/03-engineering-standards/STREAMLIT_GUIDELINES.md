@@ -19,6 +19,7 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Governs `app.py` and any fu
 ## 3. Navigation
 
 - Single-page app, no `st.sidebar` navigation beyond filters, no `st.tabs`/`st.pages` currently. This matches the current Feature Complete scope (`PROJECT_CONSTITUTION.md §17`). If the app grows to warrant multi-page navigation (e.g. a dedicated "Player Profile" page), that is a `DECISIONS.md`-worthy architectural change, not an incremental addition.
+- A **dataset selector** (`st.sidebar.radio("Dataset", [v2, v1])`, v2 default) is a *filter*, not navigation — it selects which dataset/version to render, so it stays compatible with the single-page design (see `DECISIONS.md` ADR-012). It lives in the sidebar above the version-specific filters; the non-selected version's filters and sections are never rendered (guarded by `st.stop()`).
 
 ## 4. Component Hierarchy
 

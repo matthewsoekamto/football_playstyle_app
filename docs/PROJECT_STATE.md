@@ -66,7 +66,7 @@ Core principles:
 
 ## v2 (Current Development)
 
-**Status:** Active — Phase 4: Evaluation (P8) ✅ complete (P9 remaining)
+**Status:** ✅ Complete — v2 rebuild (P1–P9) done and wired into `app.py`
 
 ### Current Phase
 
@@ -78,12 +78,12 @@ Core principles:
 
 One KMeans per position group is fit on the P6 master, clusters labeled against the 20 σ-offset archetypes, and the fitted scalers/centroids/labels persisted to `models_v2/` (SHA256-invalidated). `v2_model_engine.py` is headless (no streamlit import).
 
-**P1–P7 (data pipeline + feature engineering + clustering) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` and the P7 engine + GK label rename landed on branch `statsbomb-parser` (merged to `main` at `caffe0e`). `data/wc2022_players_master.csv` is 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`). Remaining: **P9** (visualization + wiring into `app.py`).
+**P1–P9 (data pipeline + feature engineering + clustering + visualization) complete.** The StatsBomb event parser (P3) landed at `7ccb424`; the V3-corrected FBref↔StatsBomb build (P1/P2/P4/P5) landed at `59ef406`; P6 position-scoped feature engineering + `position_v2` and the P7 engine + GK label rename landed on branch `statsbomb-parser` (merged to `main` at `caffe0e`); P8 (bootstrap stability) + P8.1 (ST k-fix) + P9 (visualization + `v2_features.py` + sidebar dataset selector) land on `worktree-p8-bootstrap-stability`. `data/wc2022_players_master.csv` is 217 rows × 192 cols (146 pre-P3 + 21 P3 + 23 P6 event-derived + 2 identity columns incl. `position_v2`).
 
 ### Branch / merge status
 
 - **Phase B is merged into `main` (2026-08-12).** `statsbomb-parser` was fast-forwarded to `main` as 5 commits (`18ebbd5` · `8ec9b68` · `eecb0b3` · `6d0c564` · `caffe0e`); `main` = `origin/main` = `caffe0e`. The `statsbomb-parser` branch is kept in sync with `main`.
-- **Next: P9** (v2 visualization + wire into `app.py`). (P8 — bootstrap stability evaluation — is complete on branch `worktree-p8-bootstrap-stability`.)
+- **Next: none — v2 rebuild complete (P1–P9).** Remaining follow-ups are optional (e.g. a multi-tournament dataset for v3 to populate the 5 unrepresented archetypes).
 
 ### Goal
 
@@ -156,6 +156,7 @@ FBref Loader                StatsBomb Parser
 | **P7 (position-scoped KMeans)** | `v2_model_engine.py` (headless): per-group KMeans (k=2/3/3/5/3/4), σ-offset archetype labeling vs the 20 archetypes, `models_v2/` persistence (SHA256-invalidated, `_artifact_stem` sanitizes the `FB/WB` group name). Engine tests in `tests/test_v2_model_engine.py` (16 tests) |
 | **P8 (bootstrap stability eval)** | `evaluate_bootstrap_stability` in `v2_model_engine.py --evaluate`: B=100 same-n resamples per group, seeded refits of the exact production preprocessing, full-n predict, ARI vs the deployed partition → mean±std ARI + mean±std refit silhouette/DB + degenerate fraction. Real snapshot: GK 0.633 / CB 0.344 / FB-WB 0.203 / MF 0.354 / Wide 0.304 / ST 0.454; degen 0.01–0.39 (ST most unstable). Methodology in `DECISIONS.md` ADR-010. Engine tests → 25 |
 | **P8.1 (ST k-fix)** | ST k 4→3 (ADR-011): removes the Messi/Memphis micro-cluster + duplicate False 9; Poacher retained-but-unpopulated. ST = Complete Forward 10 / False 9 4 / Target Man 4; ARI 0.526, degen 0.14. Engine tests → 26 |
+| **P9 (visualization + wiring)** | `v2_features.py` (cached load, filter, percentiles, σ-radar data) + `charts.py` v2 builders + sidebar dataset selector in `app.py` (v2 default, v1 preserved). v2 view = table + distribution + σ-radar explorer + position-scoped H2H. Unrepresented archetypes + duplicate labels handled in the UI (ADR-012). 13 new tests in `tests/test_v2_features.py` |
 
 ### Success Criteria (v2 Complete)
 
@@ -174,7 +175,7 @@ P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), Stats
 | Priority | Task | Effort | Where |
 |---|---|---|---|
 | ~~**P8**~~ | ~~Evaluation (silhouette, DB, bootstrap stability) on the v2 engine~~ — ✅ DONE (2026-08-12, branch `worktree-p8-bootstrap-stability`) | ~1 day | `TASK_BACKLOG.md` P8 |
-| **P9** | Visualization updates + wire v2 clustering into `app.py` | ~2 days | `TASK_BACKLOG.md` P9 |
+| ~~**P9**~~ | ~~Visualization updates + wire v2 clustering into `app.py`~~ — ✅ DONE (2026-08-13, branch `worktree-p8-bootstrap-stability`) | ~2 days | `TASK_BACKLOG.md` P9 |
 
 ---
 
@@ -199,4 +200,4 @@ P1–P5 complete: FBref schema validated, loader/merger built (`59ef406`), Stats
 
 ---
 
-*Updated 2026-08-12: P1–P7 merged to `main` (`caffe0e`); P8 bootstrap-stability evaluation complete on branch `worktree-p8-bootstrap-stability`. Next update when P9 lands.*
+*Updated 2026-08-13: v2 rebuild complete — P1–P7 merged to `main` (`caffe0e`); P8 (bootstrap stability), P8.1 (ST k-fix), and P9 (visualization + wiring into `app.py`) complete on branch `worktree-p8-bootstrap-stability`.*

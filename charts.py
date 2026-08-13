@@ -143,3 +143,73 @@ def build_playstyle_radar_chart(profile_row, feature_cols):
         showlegend=False,
     )
     return fig
+
+
+def build_v2_distribution_chart(dist_df):
+    """Horizontal bar of players per archetype (v2), coloured by position group.
+
+    ``dist_df`` comes from ``v2_features.build_distribution_dataframe``: one row
+    per archetype (with ``count``) plus a row per non-empty fallback label.
+    Unrepresented archetypes (count 0) are excluded here and surfaced separately
+    by the caller via ``get_unrepresented_archetypes``.
+    """
+    populated = dist_df[dist_df["count"] > 0].sort_values("count")
+    fig = px.bar(
+        populated,
+        x="count",
+        y="label",
+        orientation="h",
+        color="position_v2",
+        text="count",
+        template="plotly_dark",
+        title="Players per Archetype (World Cup 2022)",
+        labels={"count": "Players", "label": "Archetype", "position_v2": "Position Group"},
+    )
+    fig.update_traces(textposition="outside")
+    return fig
+
+
+def build_v2_archetype_radar_chart(player_name, reference_name, axis_labels, player_values, reference_values):
+    """σ-space radar: a player's standardized profile vs an archetype prototype.
+
+    ``axis_labels`` / ``player_values`` / ``reference_values`` are precomputed by
+    ``v2_features.build_player_radar_data`` so this stays a pure Plotly builder
+    (no Streamlit / no v2_features import).
+    """
+    closed_categories = axis_labels + [axis_labels[0]]
+    player_closed = player_values + [player_values[0]]
+    reference_closed = reference_values + [reference_values[0]]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatterpolar(
+            r=player_closed,
+            theta=closed_categories,
+            fill="toself",
+            name=player_name,
+            line_color="#00d2ff",
+            opacity=0.8,
+        )
+    )
+    fig.add_trace(
+        go.Scatterpolar(
+            r=reference_closed,
+            theta=closed_categories,
+            fill="toself",
+            name=f"{reference_name} (prototype)",
+            line_color="#ff007f",
+            opacity=0.5,
+        )
+    )
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(visible=True, gridcolor="#444444", showticklabels=False),
+            angularaxis=dict(gridcolor="#444444"),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        template="plotly_dark",
+        title=f"Playstyle Profile: {player_name} vs {reference_name}",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.1, xanchor="center", x=0.5),
+    )
+    return fig

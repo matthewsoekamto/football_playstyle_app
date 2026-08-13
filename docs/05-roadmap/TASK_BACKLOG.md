@@ -67,9 +67,9 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 - **Tests:** `test_group_order_and_k` updated (ST 3); new `test_master_st_no_duplicate_label_no_micro_cluster` locks the fix. 26 engine tests.
 - **Files affected:** `v2_model_engine.py` (+ tests), `PLAYSTYLE_SPEC.md`, `DECISIONS.md` ADR-011.
 
-### P9: v2 visualization + wire into `app.py`
+### P9: v2 visualization + wire into `app.py` — ✅ RESOLVED
 - **Priority:** Medium | **Effort:** ~2 days
-- **Status:** Pending. Bring the v2 clustered output into the Streamlit app: position-aware radar/playstyle explorer against the 20 archetypes, H2H, distribution. This is the first v2 module to enter the v1 app's import graph (headless constraint applies to the engine only). See `ARCHITECTURE.md` §11 and `STREAMLIT_GUIDELINES.md`.
+- **Status:** RESOLVED (2026-08-13, branch `worktree-p8-bootstrap-stability`). New `v2_features.py` (cached `load_v2_clustered_data`, `filter_v2_dataframe`, position-scoped percentiles, `build_distribution_dataframe`, σ-space `build_player_radar_data`) + two new `charts.py` builders (`build_v2_distribution_chart`, `build_v2_archetype_radar_chart`) + a sidebar dataset selector in `app.py` (`st.sidebar.radio`, v2 default, v1 preserved behind `st.stop()`). v2 view = table + archetype distribution + playstyle explorer (σ-radar vs the group's archetype prototype + distance-to-every-archetype) + position-scoped H2H. Unrepresented archetypes and duplicate labels handled in the UI (ADR-012). See `ARCHITECTURE.md` §11.
 
 ### DATA-01: Integrate possession/passing stats into the pipeline
 - **Priority:** Medium | **Difficulty:** High | **Impact:** High (materially richer playstyle signal) | **Effort:** ~3-5 days

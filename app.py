@@ -8,6 +8,8 @@ from charts import (
     build_playstyle_distribution_chart,
     build_playstyle_radar_chart,
     build_scatter_chart,
+    build_v2_archetype_radar_chart,
+    build_v2_distribution_chart,
 )
 from features import (
     EXPLORER_GK_FEATURES,
@@ -20,6 +22,15 @@ from features import (
     get_compare_stats_for_position,
 )
 from model_engine import get_cluster_profiles, get_clustered_data
+from v2_features import (
+    build_distribution_dataframe,
+    build_player_radar_data,
+    filter_v2_dataframe,
+    format_v2_display_table,
+    get_compare_stats_for_group,
+    get_unrepresented_archetypes,
+    load_v2_clustered_data,
+)
 
 
 def remove_accents(input_str):
@@ -224,8 +235,223 @@ def render_h2h_section(filtered_df):
     )
 
 
+def render_v2_sidebar_filters(v2_data):
+    st.sidebar.header("Filters")
+
+    groups = st.sidebar.multiselect(
+        "Position",
+        sorted(v2_data["position_v2"].dropna().unique()),
+    )
+    squads = st.sidebar.multiselect(
+        "Squad",
+        sorted(v2_data["squad_display"].dropna().unique()),
+    )
+    playstyles = st.sidebar.multiselect(
+        "Playstyle",
+        sorted(v2_data["playstyle_cluster_v2"].dropna().unique()),
+    )
+
+    return groups, squads, playstyles
+
+
+def render_v2_distribution(v2_data, filtered_df):
+    st.subheader("Archetype Distribution")
+
+    unrepresented = get_unrepresented_archetypes(v2_data)
+    if filtered_df.empty:
+        st.info("No players match the current filters.")
+        return
+
+    dist_df = build_distribution_dataframe(filtered_df)
+    st.plotly_chart(build_v2_distribution_chart(dist_df), width="stretch")
+
+    if unrepresented:
+        names = ", ".join(sorted(unrepresented))
+        st.info(
+            "These archetypes are defined in the taxonomy but have no matching "
+            f"player in the World Cup 2022 dataset: {names}."
+        )
+
+
+def render_v2_explorer(v2_data, filtered_df):
+    st.subheader("Playstyle Explorer")
+
+    st.caption(
+        "Player profiles are shown in standardized units (σ above/below their "
+        "position group's mean), overlaid with the archetype prototype they are "
+        "closest to."
+    )
+
+    if filtered_df.empty:
+        st.info("No players match the current filters.")
+        return
+
+    player_options = sorted(filtered_df["player_label"].dropna().unique())
+    selected_label = st.selectbox(
+        "Select a player:", player_options, key="v2_explorer_player"
+    )
+    if not selected_label:
+        return
+
+    player_row = filtered_df[filtered_df["player_label"] == selected_label].iloc[0]
+    group = player_row["position_v2"]
+    radar = build_player_radar_data(v2_data, player_row, group)
+
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.plotly_chart(
+            build_v2_archetype_radar_chart(
+                radar["player_name"],
+                radar["reference"],
+                radar["axis_labels"],
+                radar["player_values"],
+                radar["reference_values"],
+            ),
+            width="stretch",
+        )
+    with col2:
+        if radar["is_fallback"]:
+            st.warning(
+                f"Assigned label '{radar['assigned']}' is a fallback — this cluster "
+                "matched no archetype within the labelling threshold. Nearest "
+                f"archetype: **{radar['nearest']}**."
+            )
+        else:
+            st.markdown(f"**Assigned archetype:** {radar['assigned']}")
+        st.markdown("**Distance to each archetype in this position group:**")
+        for name, dist in sorted(radar["distances"].items(), key=lambda item: item[1]):
+            suffix = " ← nearest" if name == radar["nearest"] else ""
+            st.markdown(f"- {name}: {dist:.2f}σ{suffix}")
+
+
+def render_v2_h2h(filtered_df):
+    st.subheader("Head-to-Head Player Comparison")
+
+    player_options = sorted(filtered_df["player_label"].dropna().unique())
+    if len(player_options) < 2:
+        st.info("Select a broader filter set to compare at least two players.")
+        return
+
+    col1, col2 = st.columns(2)
+    with col1:
+        player1_label = st.selectbox(
+            "Select Player 1:", player_options, index=0, key="v2_h2h_p1"
+        )
+    with col2:
+        player2_label = st.selectbox(
+            "Select Player 2:",
+            player_options,
+            index=min(1, len(player_options) - 1),
+            key="v2_h2h_p2",
+        )
+
+    if not player1_label or not player2_label:
+        return
+
+    p1 = filtered_df[filtered_df["player_label"] == player1_label].iloc[0]
+    p2 = filtered_df[filtered_df["player_label"] == player2_label].iloc[0]
+
+    if p1["position_v2"] != p2["position_v2"]:
+        st.warning(
+            "These players are in different position groups — select two players "
+            "from the same group for a meaningful percentile comparison."
+        )
+        return
+
+    group = p1["position_v2"]
+    compare_stats, stat_names = get_compare_stats_for_group(group)
+    valid_stats = [stat for stat in compare_stats if stat in p1.index and stat in p2.index]
+    valid_names = [stat_names[compare_stats.index(stat)] for stat in valid_stats]
+
+    if not valid_stats:
+        st.info("Performance stats are not available for these players.")
+        return
+
+    st.markdown(
+        f"#### **{player1_label}** ({p1['playstyle_cluster_v2']}) vs "
+        f"**{player2_label}** ({p2['playstyle_cluster_v2']})"
+    )
+
+    metric_cols = st.columns(len(valid_stats))
+    for index, stat in enumerate(valid_stats):
+        val1 = float(p1[stat])
+        val2 = float(p2[stat])
+        diff = val1 - val2
+        with metric_cols[index]:
+            st.metric(label=valid_names[index], value=round(val1, 2), delta=round(diff, 2))
+            st.metric(
+                label=f"{player2_label} {valid_names[index]}",
+                value=round(val2, 2),
+                delta=round(-diff, 2),
+            )
+
+    st.markdown("---")
+    st.markdown("#### Visual Profile Breakdown (Position-Scoped Percentiles)")
+
+    p1_values = [float(p1[f"{stat}_percentile"]) for stat in valid_stats]
+    p2_values = [float(p2[f"{stat}_percentile"]) for stat in valid_stats]
+
+    st.plotly_chart(
+        build_h2h_radar(player1_label, player2_label, valid_stats, valid_names, p1_values, p2_values),
+        width="stretch",
+    )
+
+
+def render_v2_view():
+    try:
+        with st.spinner("Loading World Cup 2022 dataset and calculating playstyles..."):
+            v2_data = load_v2_clustered_data("data/wc2022_players_master.csv")
+    except (FileNotFoundError, ValueError) as e:
+        st.error(str(e))
+        st.stop()
+
+    groups, squads, playstyles = render_v2_sidebar_filters(v2_data)
+    filtered_df = filter_v2_dataframe(
+        v2_data,
+        groups=groups or None,
+        squads=squads or None,
+        playstyles=playstyles or None,
+    )
+
+    st.subheader("Search and Filter Players")
+    search_query = st.text_input(
+        "Type a player's name to filter the table:", "", key="v2_search"
+    )
+    filtered_df = apply_search_filter(filtered_df, search_query)
+
+    display_columns = ["player", "squad_display", "position_v2", "playstyle_cluster_v2"]
+    st.dataframe(
+        format_v2_display_table(
+            filtered_df.sort_values("player", kind="stable"), display_columns
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+
+    st.divider()
+    render_v2_distribution(v2_data, filtered_df)
+
+    st.divider()
+    render_v2_explorer(v2_data, filtered_df)
+
+    st.divider()
+    render_v2_h2h(filtered_df)
+
+
 st.set_page_config(page_title="Football Playstyle App", layout="wide")
 st.title("Football Playstyle Clustering App")
+
+dataset = st.sidebar.radio(
+    "Dataset",
+    ["v2 — World Cup 2022", "v1 — Big-5 Leagues 2025/26"],
+    index=0,
+    help="Switch between the World Cup 2022 build (20 position-scoped archetypes) "
+    "and the legacy Big-5 leagues build.",
+)
+
+if dataset.startswith("v2"):
+    render_v2_view()
+    st.stop()
 
 try:
     with st.spinner("Loading dataset and calculating playstyles..."):
