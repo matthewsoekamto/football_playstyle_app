@@ -87,9 +87,13 @@ BOOTSTRAP_KEYS = frozenset({
 # --- constant structure -----------------------------------------------------
 
 def test_group_order_and_k():
-    """Six groups, k values match the spec (2/3/3/5/3/4), 20 archetypes total."""
+    """Six groups, k values match the spec (2/3/3/5/3/3), 20 archetypes total.
+
+    ST is k=3 by ADR-011: its 4th archetype (Poacher) is retained in the taxonomy
+    but unpopulated, so only 3 of 4 ST archetypes are assigned.
+    """
     assert ve.GROUP_ORDER == ["GK", "CB", "FB/WB", "MF", "Wide", "ST"]
-    assert ve.GROUP_K == {"GK": 2, "CB": 3, "FB/WB": 3, "MF": 5, "Wide": 3, "ST": 4}
+    assert ve.GROUP_K == {"GK": 2, "CB": 3, "FB/WB": 3, "MF": 5, "Wide": 3, "ST": 3}
     n_arch = sum(len(ve.GROUP_ARCHETYPES[g]) for g in ve.GROUP_ORDER)
     assert n_arch == 20, "PLAYSTYLE_SPEC defines exactly 20 archetypes"
 
@@ -326,6 +330,25 @@ def test_master_labels_not_degenerate():
         g = df[df["position_v2"] == group]
         labeled = g["playstyle_cluster_v2"].isin(ve.GROUP_ARCHETYPES[group])
         assert labeled.any(), f"{group} produced no archetype labels (all Mixed Profile)"
+
+
+@REAL_DATASET
+def test_master_st_no_duplicate_label_no_micro_cluster():
+    """ST k=3 (ADR-011): three clusters, no duplicate archetype label, no micro-cluster.
+
+    Locks out the k=4 failure mode — a 2-player Messi/Memphis micro-cluster and two
+    clusters both labelled "False 9".
+    """
+    master = pd.read_csv(MASTER_PATH)
+    st = ve.group_and_cluster(master)
+    st = st[st["position_v2"] == "ST"]
+    sizes = st.groupby("cluster_id_v2").size()
+    assert len(sizes) == 3
+    assert sizes.min() >= 3, f"micro-cluster regressed: sizes {sizes.tolist()}"
+    labels_per_cluster = st.groupby("cluster_id_v2")["playstyle_cluster_v2"].first()
+    assert labels_per_cluster.nunique() == len(labels_per_cluster), (
+        f"duplicate archetype label regressed: {labels_per_cluster.tolist()}"
+    )
 
 
 @REAL_DATASET

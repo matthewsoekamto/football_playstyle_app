@@ -362,6 +362,8 @@ Not Important
 ---
 Strikers (4)
 
+_Note: k=3 clusters in WC 2022 (see `DECISIONS.md` ADR-011). Poacher is retained in the taxonomy but currently unpopulated — no WC 2022 striker fits the pure box-finisher profile (it sits ~6.3σ from Complete Forward)._
+
 17. Poacher
 
 Important

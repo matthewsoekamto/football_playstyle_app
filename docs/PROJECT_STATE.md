@@ -72,7 +72,7 @@ Core principles:
 
 **Phase 4 — Evaluation (P8) ✅ complete.**
 
-`--evaluate` now reports bootstrap stability per group: B=100 same-n resamples, each refitting the exact production preprocessing and scoring ARI vs the deployed partition (mean ± std ARI), plus refit silhouette/DB and a degenerate fraction. Real snapshot: GK 0.633±0.287 · CB 0.344±0.183 · FB/WB 0.203±0.129 · MF 0.354±0.142 · Wide 0.304±0.152 · ST 0.454±0.191 (degen 0.01–0.39). ST's 4-way split is **provisional** (highest refit instability); diagnostic, not a blocker. See `DECISIONS.md` ADR-010, `ARCHITECTURE.md` §11.
+`--evaluate` now reports bootstrap stability per group: B=100 same-n resamples, each refitting the exact production preprocessing and scoring ARI vs the deployed partition (mean ± std ARI), plus refit silhouette/DB and a degenerate fraction. Real snapshot: GK 0.633±0.287 · CB 0.344±0.183 · FB/WB 0.203±0.129 · MF 0.354±0.142 · Wide 0.304±0.152 · ST 0.454±0.191 (degen 0.01–0.39). The ST instability this exposed was acted on in a follow-up (ADR-011): ST k reduced 4→3 (Poacher retained-but-unpopulated) → ST ARI 0.526, degen 0.14. Wide remains the provisional small-n case; diagnostic, not a blocker. See `DECISIONS.md` ADR-010/ADR-011, `ARCHITECTURE.md` §11.
 
 **Phase 3 — Position-Scoped KMeans Engine (P7) ✅ complete.**
 
@@ -155,6 +155,7 @@ FBref Loader                StatsBomb Parser
 | **P6 (position-scoped features)** | 23 more event-derived features (passing, defending, duels, shots/xG/npxG, box/final-third touches, penalties) + `parse_lineups`/`position_v2` (6 groups from StatsBomb lineups) → master 217 × 192; data fixes (`conversion_pct` overflow, `dribble_success_pct`, dropped `pkwon`/`pkcon`) |
 | **P7 (position-scoped KMeans)** | `v2_model_engine.py` (headless): per-group KMeans (k=2/3/3/5/3/4), σ-offset archetype labeling vs the 20 archetypes, `models_v2/` persistence (SHA256-invalidated, `_artifact_stem` sanitizes the `FB/WB` group name). Engine tests in `tests/test_v2_model_engine.py` (16 tests) |
 | **P8 (bootstrap stability eval)** | `evaluate_bootstrap_stability` in `v2_model_engine.py --evaluate`: B=100 same-n resamples per group, seeded refits of the exact production preprocessing, full-n predict, ARI vs the deployed partition → mean±std ARI + mean±std refit silhouette/DB + degenerate fraction. Real snapshot: GK 0.633 / CB 0.344 / FB-WB 0.203 / MF 0.354 / Wide 0.304 / ST 0.454; degen 0.01–0.39 (ST most unstable). Methodology in `DECISIONS.md` ADR-010. Engine tests → 25 |
+| **P8.1 (ST k-fix)** | ST k 4→3 (ADR-011): removes the Messi/Memphis micro-cluster + duplicate False 9; Poacher retained-but-unpopulated. ST = Complete Forward 10 / False 9 4 / Target Man 4; ARI 0.526, degen 0.14. Engine tests → 26 |
 
 ### Success Criteria (v2 Complete)
 

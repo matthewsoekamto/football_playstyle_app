@@ -61,6 +61,12 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Every item below was identi
 - **Tests:** 8 new engine tests in `tests/test_v2_model_engine.py` (determinism, keys/ARI bounds, high stability on separable blobs, refit-variance finite, uniform-noise NOT falsely stable, evaluate=True leaves clustering unchanged, small-group NaN, real-master runs). 25 engine tests; full suite 112 passed + 1 pre-existing skip (parser test needing gitignored `data/statsbomb/`), ruff clean.
 - **Files affected:** `v2_model_engine.py` (+ tests).
 
+### P8.1: ST k-reduction (4→3) + Poacher retained-unpopulated — ✅ RESOLVED
+- **Priority:** Medium | **Effort:** ~0.5 day
+- **Status:** RESOLVED (2026-08-13, branch `worktree-p8-bootstrap-stability`). P8's bootstrap exposed ST's over-split: k=4 on n=18 produced a 2-player Messi/Memphis micro-cluster and two clusters both labelled "False 9" (degen 0.39), while the 4th archetype (Poacher) never won a label (~6.3σ from Complete Forward, no WC 2022 striker fits it). Reduced `GROUP_K["ST"]` 4→3 → **ST = Complete Forward 10 / False 9 4 / Target Man 4**; ARI 0.454→0.526, degen 0.39→0.14. Poacher is **retained in the taxonomy but unpopulated** (owner decision: keep, don't drop) so the 20-archetype spec survives richer future data. See `DECISIONS.md` ADR-011.
+- **Tests:** `test_group_order_and_k` updated (ST 3); new `test_master_st_no_duplicate_label_no_micro_cluster` locks the fix. 26 engine tests.
+- **Files affected:** `v2_model_engine.py` (+ tests), `PLAYSTYLE_SPEC.md`, `DECISIONS.md` ADR-011.
+
 ### P9: v2 visualization + wire into `app.py`
 - **Priority:** Medium | **Effort:** ~2 days
 - **Status:** Pending. Bring the v2 clustered output into the Streamlit app: position-aware radar/playstyle explorer against the 20 archetypes, H2H, distribution. This is the first v2 module to enter the v1 app's import graph (headless constraint applies to the engine only). See `ARCHITECTURE.md` §11 and `STREAMLIT_GUIDELINES.md`.

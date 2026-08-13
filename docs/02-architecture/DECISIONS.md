@@ -160,3 +160,20 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Each record below is recons
 **Why:** ARI is permutation-invariant (no label alignment needed), chance-corrected, and a single interpretable scalar per group. Predict-on-full-n avoids the small-n pitfall that defeats sample-restricted ARI: with ST n=18, k=4, a whole cluster is absent from a bootstrap sample with non-negligible probability (~e⁻¹ per player), so a sample-restricted comparison would pit a k−1-cluster reference against a k-cluster refit — apples to oranges. Full-n prediction never has this problem because the deployed partition always carries all k clusters.
 
 **Tradeoffs:** Partition-level, not per-player, evidence (per-player *label* stability across refits is a possible future extension, but would require re-running the archetype-labeling step inside each iteration). Refit silhouette is slightly deflated because bootstrap samples contain duplicate rows (a duplicated point has a "twin" at distance 0). The degenerate fraction is a real small-n signal — ST collapses a cluster in 39% of refits — reported as a limitation, not a gate, consistent with the diagnostic-not-gating framing of `ML_GUIDELINES.md` §9.
+
+---
+
+## ADR-011: ST k reduced 4→3; Poacher retained but unpopulated
+
+**Context:** ADR-010's bootstrap evaluation exposed ST (n=18, k=4) as the least stable group: ARI 0.454, degenerate fraction 0.39. The root cause is structural, not noise — k=4 produced a 2-player micro-cluster (Messi + Memphis) and two clusters both labelled "False 9", while the 4th ST archetype (Poacher) never won a label: it sits ~6.3σ from Complete Forward (the closest prototype pair in the group) and no WC 2022 striker fits its box-dwelling finisher profile (the tournament's elite finishers are Messi → False 9 and Mbappé → Wide, and no ST is +2σ on goal output, conversion, *and* 6-yard-box presence simultaneously).
+
+**Options considered:**
+- (A) Drop Poacher entirely: ST becomes 3 archetypes, 19 total. Cleanest output but changes the canonical 20-archetype product spec.
+- (B) Reduce k to 3, retain Poacher: 4 archetypes in the taxonomy, 3 clusters, so Poacher is defined-but-unpopulated. Preserves the 20-archetype taxonomy for richer future data.
+- (C) Keep k=4 and retune Poacher to be more discriminable: does not fix the micro-cluster / duplicate-label problem (degen stays ~0.39).
+
+**Chosen:** (B) — `GROUP_K["ST"] = 3`, Poacher left in `GROUP_ARCHETYPES["ST"]`.
+
+**Why:** k=3 removes the micro-cluster and duplicate label (ST = Complete Forward 10 / False 9 4 / Target Man 4), raising ARI to 0.526 and cutting degeneracy to 0.14. Poacher is a real football concept (the pure box finisher) worth keeping in the taxonomy even though this 18-player tournament sample has no such player — dropping it would lose the concept from the spec, not just the code.
+
+**Tradeoffs:** A 4-archetype taxonomy with 3 clusters means one archetype (Poacher) is definitionally empty — it can never win a nearest-centroid match. The nearest margin is thin: the Complete Forward cluster sits 6.33σ from CF vs 6.47σ from Poacher (+0.14σ), so a future data change could flip that cluster's label to Poacher. When richer data arrives (club seasons, the v3 path), revisit: either restore ST k=4 and expect Poacher to populate, or formally retire it.

@@ -79,13 +79,16 @@ GROUP_FALLBACK_LABEL = {
 DATASET_PATH = "data/wc2022_players_master.csv"
 
 GROUP_ORDER = ["GK", "CB", "FB/WB", "MF", "Wide", "ST"]
+# ST uses k=3 despite its 4 archetypes: k=4 produced a 2-player micro-cluster and
+# duplicate "False 9" labels; Poacher is retained in the taxonomy but unpopulated
+# in WC 2022 (see DECISIONS.md ADR-011). The spare archetype simply never wins a label.
 GROUP_K = {
     "GK": 2,
     "CB": 3,
     "FB/WB": 3,
     "MF": 5,
     "Wide": 3,
-    "ST": 4,
+    "ST": 3,
 }
 
 # Per-group feature sets = union of Important + Not Important across each group's
@@ -259,6 +262,8 @@ GROUP_ARCHETYPES = {
         },
     },
     "ST": {
+        # Retained-but-unpopulated: k=3 (< 4 archetypes) means Poacher never wins a
+        # label in WC 2022; kept so the taxonomy survives richer future data.
         "Poacher": {
             "gls_p90": 2.5, "xG_p90": 2.5, "shots_p90": 2.0,
             "conversion_pct": 2.0, "npxG_per_shot": 2.0,
