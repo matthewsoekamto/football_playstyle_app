@@ -69,6 +69,7 @@ def build_h2h_radar(player1, player2, valid_stats, valid_names, p1_values, p2_va
             name=player1,
             line_color="#00d2ff",
             opacity=0.8,
+            hovertemplate="<b>%{theta}</b><br>%{fullData.name}: %{r:.0f}<extra></extra>",
         )
     )
     fig.add_trace(
@@ -79,6 +80,7 @@ def build_h2h_radar(player1, player2, valid_stats, valid_names, p1_values, p2_va
             name=player2,
             line_color="#ff007f",
             opacity=0.8,
+            hovertemplate="<b>%{theta}</b><br>%{fullData.name}: %{r:.0f}<extra></extra>",
         )
     )
     fig.update_layout(
@@ -130,6 +132,7 @@ def build_playstyle_radar_chart(profile_row, feature_cols):
             name=profile_row["playstyle"],
             line_color="#00d2ff",
             opacity=0.8,
+            hovertemplate="<b>%{theta}</b><br>%{r:.2f}<extra></extra>",
         )
     )
     fig.update_layout(
@@ -197,6 +200,7 @@ def build_v2_archetype_radar_chart(player_name, archetype_name, group, axis_labe
             line_color="#888888",
             line_dash="dot",
             opacity=0.7,
+            hoverinfo="skip",
         )
     )
     fig.add_trace(
@@ -207,6 +211,7 @@ def build_v2_archetype_radar_chart(player_name, archetype_name, group, axis_labe
             name=player_name,
             line_color="#00d2ff",
             opacity=0.8,
+            hovertemplate="<b>%{theta}</b><br>Percentile: %{r:.0f}<extra></extra>",
         )
     )
     fig.update_layout(
@@ -244,6 +249,7 @@ def build_v2_archetype_fit_chart(player_name, distances, nearest):
             text=[f"{dists[i]:.1f}σ" for i in order],
             textposition="outside",
             cliponaxis=False,
+            hovertemplate="<b>%{y}</b><br>Fit: %{x:.2f}<br>σ-distance: %{text}<extra></extra>",
         )
     )
     fig.update_layout(
