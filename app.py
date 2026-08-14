@@ -260,28 +260,21 @@ def render_v2_search(v2_data):
         "archetype, and percentile profile against their position group."
     )
 
-    query = st.text_input(
+    options = v2_data.sort_values("player", kind="stable")["player_display"].tolist()
+    selected = st.selectbox(
         "Search for a player",
-        placeholder="e.g. Messi, Mbappé, De Bruyne…",
-        label_visibility="collapsed",
+        options=options,
+        index=None,
+        placeholder="Type a player's name…",
         key="v2_search_player",
     )
 
-    if query:
-        matches = apply_search_filter(v2_data, query)
-        if matches.empty:
-            st.warning(f"No players match “{query}”.")
-            return
-        options = sorted(matches["player_label"].unique())
-    else:
+    if not selected:
         featured = ["Lionel Messi", "Kylian Mbappé", "Kevin De Bruyne", "Jude Bellingham", "Vinícius Júnior"]
-        available = [p for p in featured if p in set(v2_data["player_label"])]
-        options = available or sorted(v2_data["player_label"].unique())[:5]
+        st.caption("Try: " + " · ".join(featured))
+        return
 
-    selected = st.selectbox(
-        "Player", options, label_visibility="collapsed", key="v2_search_select"
-    )
-    player_row = v2_data[v2_data["player_label"] == selected].iloc[0]
+    player_row = v2_data[v2_data["player_display"] == selected].iloc[0]
     group = player_row["position_v2"]
     radar = build_player_radar_data(v2_data, player_row, group)
 
