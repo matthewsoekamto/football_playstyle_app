@@ -482,7 +482,34 @@ def render_v2_view():
     render_v2_h2h(filtered_df)
 
 
+def _inject_theme_css():
+    """Graphite theme polish: modern font stack + card-style metrics/dataframes."""
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            font-family: "Inter", "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+        }
+        [data-testid="stMetric"] {
+            background-color: #1c1c1c;
+            border: 1px solid #2b2b2b;
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+        [data-testid="stMetricLabel"] { color: #a3a3a3; }
+        [data-testid="stDataFrame"] {
+            border: 1px solid #2b2b2b;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 st.set_page_config(page_title="Football Playstyle Explorer", layout="wide")
+_inject_theme_css()
 st.title("Football Playstyle Explorer")
 
 dataset = st.sidebar.radio(
