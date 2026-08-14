@@ -8,6 +8,7 @@ from charts import (
     build_playstyle_distribution_chart,
     build_playstyle_radar_chart,
     build_scatter_chart,
+    build_v2_archetype_fit_chart,
     build_v2_archetype_radar_chart,
     build_v2_distribution_chart,
 )
@@ -23,6 +24,8 @@ from features import (
 )
 from model_engine import get_cluster_profiles, get_clustered_data
 from v2_features import (
+    all_archetypes,
+    archetype_traits,
     build_distribution_dataframe,
     build_player_radar_data,
     filter_v2_dataframe,
@@ -30,6 +33,7 @@ from v2_features import (
     get_compare_stats_for_group,
     get_unrepresented_archetypes,
     load_v2_clustered_data,
+    nearest_players_to_archetype,
 )
 
 
@@ -277,9 +281,8 @@ def render_v2_explorer(v2_data, filtered_df):
     st.subheader("Playstyle Explorer")
 
     st.caption(
-        "Player profiles are shown in standardized units (σ above/below their "
-        "position group's mean), overlaid with the archetype prototype they are "
-        "closest to."
+        "Each radar shows a player's percentiles within their position group "
+        "(100 = the group's best on that trait, 50 = the group median)."
     )
 
     if filtered_df.empty:
@@ -303,9 +306,9 @@ def render_v2_explorer(v2_data, filtered_df):
             build_v2_archetype_radar_chart(
                 radar["player_name"],
                 radar["reference"],
+                radar["group"],
                 radar["axis_labels"],
                 radar["player_values"],
-                radar["reference_values"],
             ),
             width="stretch",
         )
@@ -318,10 +321,18 @@ def render_v2_explorer(v2_data, filtered_df):
             )
         else:
             st.markdown(f"**Assigned archetype:** {radar['assigned']}")
-        st.markdown("**Distance to each archetype in this position group:**")
-        for name, dist in sorted(radar["distances"].items(), key=lambda item: item[1]):
-            suffix = " ← nearest" if name == radar["nearest"] else ""
-            st.markdown(f"- {name}: {dist:.2f}σ{suffix}")
+
+        traits = archetype_traits(group, radar["reference"])
+        if traits:
+            summary = ", ".join(label for label, _ in traits[:6])
+            st.markdown(f"*{radar['reference']}* — {summary}.")
+
+        st.plotly_chart(
+            build_v2_archetype_fit_chart(
+                radar["player_name"], radar["distances"], radar["nearest"]
+            ),
+            width="stretch",
+        )
 
 
 def render_v2_h2h(filtered_df):
@@ -351,12 +362,12 @@ def render_v2_h2h(filtered_df):
     p1 = filtered_df[filtered_df["player_label"] == player1_label].iloc[0]
     p2 = filtered_df[filtered_df["player_label"] == player2_label].iloc[0]
 
-    if p1["position_v2"] != p2["position_v2"]:
+    same_group = p1["position_v2"] == p2["position_v2"]
+    if not same_group:
         st.warning(
-            "These players are in different position groups — select two players "
-            "from the same group for a meaningful percentile comparison."
+            "These players are in different position groups — percentiles use "
+            "different pools, so the raw values below are not directly comparable."
         )
-        return
 
     group = p1["position_v2"]
     compare_stats, stat_names = get_compare_stats_for_group(group)
@@ -385,6 +396,9 @@ def render_v2_h2h(filtered_df):
                 delta=round(-diff, 2),
             )
 
+    if not same_group:
+        return
+
     st.markdown("---")
     st.markdown("#### Visual Profile Breakdown (Position-Scoped Percentiles)")
 
@@ -395,6 +409,28 @@ def render_v2_h2h(filtered_df):
         build_h2h_radar(player1_label, player2_label, valid_stats, valid_names, p1_values, p2_values),
         width="stretch",
     )
+
+
+def render_v2_archetype_browser(v2_data):
+    st.subheader("Archetype Reference")
+    st.caption("What each of the 20 archetypes means, and who plays most like it.")
+
+    choices = all_archetypes()
+    labels = [f"{group} · {name}" for group, name in choices]
+    selected = st.selectbox("Browse an archetype:", labels, key="v2_browser")
+    group, name = choices[labels.index(selected)]
+
+    traits = archetype_traits(group, name)
+    if traits:
+        summary = ", ".join(label for label, _ in traits)
+        st.markdown(f"**{name}** — {summary}.")
+
+    nearest = nearest_players_to_archetype(v2_data, group, name, top_n=5)
+    st.markdown("**Players closest to this archetype:**")
+    for row in nearest:
+        st.markdown(
+            f"- {row['player']} ({row['squad_display']}) — {row['playstyle_cluster_v2']}"
+        )
 
 
 def render_v2_view():
@@ -419,11 +455,16 @@ def render_v2_view():
     )
     filtered_df = apply_search_filter(filtered_df, search_query)
 
-    display_columns = ["player", "squad_display", "position_v2", "playstyle_cluster_v2"]
+    table_df = filtered_df.sort_values("player", kind="stable").copy()
+    for col in ("gls_p90", "Ast_p90"):
+        if col in table_df.columns:
+            table_df[col] = table_df[col].round(2)
+    display_columns = [
+        "player", "squad_display", "position_v2", "playstyle_cluster_v2",
+        "gls_p90", "Ast_p90",
+    ]
     st.dataframe(
-        format_v2_display_table(
-            filtered_df.sort_values("player", kind="stable"), display_columns
-        ),
+        format_v2_display_table(table_df, display_columns),
         width="stretch",
         hide_index=True,
     )
@@ -435,11 +476,14 @@ def render_v2_view():
     render_v2_explorer(v2_data, filtered_df)
 
     st.divider()
+    render_v2_archetype_browser(v2_data)
+
+    st.divider()
     render_v2_h2h(filtered_df)
 
 
-st.set_page_config(page_title="Football Playstyle App", layout="wide")
-st.title("Football Playstyle Clustering App")
+st.set_page_config(page_title="Football Playstyle Explorer", layout="wide")
+st.title("Football Playstyle Explorer")
 
 dataset = st.sidebar.radio(
     "Dataset",

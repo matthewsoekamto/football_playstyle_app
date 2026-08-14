@@ -149,7 +149,8 @@ def test_master_radar_data():
     assert radar["assigned"] == "False 9"
     assert radar["axes"]
     assert len(radar["player_values"]) == len(radar["axes"])
-    assert len(radar["reference_values"]) == len(radar["axes"])
+    # Values are position-scoped percentiles (0-100), not σ.
+    assert all(0.0 <= v <= 100.0 for v in radar["player_values"])
     # Distances cover every ST archetype (incl. the unpopulated Poacher).
     assert set(radar["distances"]) == set(ve.GROUP_ARCHETYPES["ST"])
 
@@ -168,6 +169,38 @@ def test_build_v2_distribution_chart_returns_figure():
 def test_build_v2_archetype_radar_chart_returns_figure():
     from charts import build_v2_archetype_radar_chart
     labels = ["Goals per 90", "Assists per 90", "Shots per 90"]
-    fig = build_v2_archetype_radar_chart("Messi", "False 9", labels, [1.0, 2.0, 1.5], [2.0, 2.5, 2.0])
+    fig = build_v2_archetype_radar_chart("Messi", "False 9", "ST", labels, [95.0, 80.0, 60.0])
     assert fig is not None
-    assert len(fig.data) == 2  # player + prototype
+    assert len(fig.data) == 2  # median ring + player
+
+
+def test_build_v2_archetype_fit_chart_returns_figure():
+    from charts import build_v2_archetype_fit_chart
+    distances = {"False 9": 6.3, "Complete Forward": 8.0, "Poacher": 10.1}
+    fig = build_v2_archetype_fit_chart("Messi", distances, "False 9")
+    assert fig is not None
+    assert len(fig.data) == 1
+
+
+def test_archetype_traits_sorted_and_positive():
+    traits = vf.archetype_traits("ST", "Complete Forward")
+    assert traits
+    assert all(sigma > 0 for _, sigma in traits)
+    # sorted descending by σ-offset
+    sigmas = [sigma for _, sigma in traits]
+    assert sigmas == sorted(sigmas, reverse=True)
+
+
+def test_all_archetypes_is_20():
+    assert len(vf.all_archetypes()) == 20
+    assert ("ST", "Poacher") in vf.all_archetypes()  # retained-but-unpopulated
+
+
+@REAL_DATASET
+def test_nearest_players_to_archetype():
+    master = pd.read_csv(MASTER_PATH)
+    clustered = ve.group_and_cluster(master)
+    nearest = vf.nearest_players_to_archetype(clustered, "ST", "False 9", top_n=5)
+    assert len(nearest) == 5
+    assert nearest[0]["player"] == "Lionel Messi"
+    assert all("playstyle_cluster_v2" in row for row in nearest)

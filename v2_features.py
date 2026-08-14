@@ -257,12 +257,22 @@ def _archetype_distances(player_sigma, group):
     return distances
 
 
-def build_player_radar_data(full_df, player_row, group):
-    """Compute the σ-space radar data for a player against their group's archetypes.
+def _group_percentile(group_df, player_row, feature):
+    """Position-scoped percentile (0-100) of one player on one feature."""
+    col = group_df[feature].astype(float).fillna(0)
+    val = player_row[feature]
+    player_val = float(val) if pd.notna(val) else 0.0
+    return round(float((col <= player_val).mean()) * 100.0, 1)
 
-    The reference overlay is the player's assigned archetype when that is a real
-    archetype, else the *nearest* archetype (a fallback-labelled player is shown
-    honestly against "the closest archetype they still did not reach").
+
+def build_player_radar_data(full_df, player_row, group):
+    """Compute percentile-radar data for a player within their position group.
+
+    The radar axes are the player's assigned archetype's defining traits (or the
+    *nearest* archetype's, for a fallback-labelled player). Each value is the
+    player's position-scoped **percentile (0-100)** on that trait, so "Goals per
+    90: 95" reads as "95th percentile among this position group". σ-distances to
+    every archetype are still returned for the fit/similarity bars.
     """
     features = ve.GROUP_FEATURES[group]
     group_df = full_df[full_df["position_v2"] == group]
@@ -284,7 +294,38 @@ def build_player_radar_data(full_df, player_row, group):
         "is_fallback": assigned not in ve.GROUP_ARCHETYPES[group],
         "axes": axes,
         "axis_labels": [v2_friendly_label(f) for f in axes],
-        "player_values": [float(player_sigma[f]) for f in axes],
-        "reference_values": [float(offsets[f]) for f in axes],
+        "player_values": [_group_percentile(group_df, player_row, f) for f in axes],
         "distances": distances,
     }
+
+
+def archetype_traits(group, name):
+    """An archetype's defining traits as (friendly label, σ-offset), sorted desc."""
+    offsets = ve.GROUP_ARCHETYPES[group][name]
+    return sorted(
+        ((v2_friendly_label(feature), sigma) for feature, sigma in offsets.items() if sigma > 0),
+        key=lambda item: -item[1],
+    )
+
+
+def all_archetypes():
+    """All 20 archetypes as (group, name) pairs in display order."""
+    return [(group, name) for group in ve.GROUP_ORDER for name in ve.GROUP_ARCHETYPES[group]]
+
+
+def nearest_players_to_archetype(full_df, group, name, top_n=5):
+    """Players in the group nearest (σ-space) to an archetype prototype."""
+    features = ve.GROUP_FEATURES[group]
+    offsets = ve.GROUP_ARCHETYPES[group][name]
+    group_df = full_df[full_df["position_v2"] == group]
+    vals = group_df[features].astype(float).fillna(0)
+    mean = vals.mean()
+    std = vals.std(ddof=0).replace(0.0, 1.0)
+    sigma = (vals - mean) / std
+    proto = np.array([offsets.get(f, 0.0) for f in features], dtype=float)
+    dist = np.linalg.norm(sigma.values - proto, axis=1)
+    ranked = group_df.assign(_dist=dist).nsmallest(top_n, "_dist")
+    cols = ["player", "playstyle_cluster_v2"] + (
+        ["squad_display"] if "squad_display" in ranked.columns else []
+    )
+    return ranked[cols].to_dict("records")

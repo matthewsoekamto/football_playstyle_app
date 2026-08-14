@@ -146,41 +146,59 @@ def build_playstyle_radar_chart(profile_row, feature_cols):
 
 
 def build_v2_distribution_chart(dist_df):
-    """Horizontal bar of players per archetype (v2), coloured by position group.
+    """Faceted horizontal bar of players per archetype, one facet per position group.
 
     ``dist_df`` comes from ``v2_features.build_distribution_dataframe``: one row
-    per archetype (with ``count``) plus a row per non-empty fallback label.
-    Unrepresented archetypes (count 0) are excluded here and surfaced separately
-    by the caller via ``get_unrepresented_archetypes``.
+    per archetype (``count`` may be 0) plus a row per non-empty fallback label.
+    Count-0 archetypes render as empty bars so the full taxonomy is visible; the
+    caller also lists them via ``get_unrepresented_archetypes``.
     """
-    populated = dist_df[dist_df["count"] > 0].sort_values("count")
     fig = px.bar(
-        populated,
+        dist_df.sort_values("count"),
         x="count",
         y="label",
         orientation="h",
-        color="position_v2",
+        color="kind",
+        facet_row="position_v2",
+        facet_row_spacing=0.06,
         text="count",
         template="plotly_dark",
         title="Players per Archetype (World Cup 2022)",
-        labels={"count": "Players", "label": "Archetype", "position_v2": "Position Group"},
+        labels={"count": "Players", "label": "", "position_v2": "", "kind": ""},
+        color_discrete_map={"archetype": "#00d2ff", "fallback": "#ffa15c"},
+        category_orders={"position_v2": ["GK", "CB", "FB/WB", "MF", "Wide", "ST"]},
     )
-    fig.update_traces(textposition="outside")
+    fig.update_traces(textposition="outside", cliponaxis=False)
+    # Strip the "position_v2=" prefix from the facet sub-labels.
+    fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+    fig.update_yaxes(matches=None)
+    fig.update_layout(height=130 * dist_df["position_v2"].nunique() + 120, legend_title_text="")
     return fig
 
 
-def build_v2_archetype_radar_chart(player_name, reference_name, axis_labels, player_values, reference_values):
-    """σ-space radar: a player's standardized profile vs an archetype prototype.
+def build_v2_archetype_radar_chart(player_name, archetype_name, group, axis_labels, player_values):
+    """Percentile radar: a player's position-scoped percentiles vs a 50-median ring.
 
-    ``axis_labels`` / ``player_values`` / ``reference_values`` are precomputed by
+    ``axis_labels`` / ``player_values`` (0-100) are precomputed by
     ``v2_features.build_player_radar_data`` so this stays a pure Plotly builder
     (no Streamlit / no v2_features import).
     """
     closed_categories = axis_labels + [axis_labels[0]]
     player_closed = player_values + [player_values[0]]
-    reference_closed = reference_values + [reference_values[0]]
+    median_closed = [50.0] * len(closed_categories)
 
     fig = go.Figure()
+    fig.add_trace(
+        go.Scatterpolar(
+            r=median_closed,
+            theta=closed_categories,
+            fill="none",
+            name="Position median (50)",
+            line_color="#888888",
+            line_dash="dot",
+            opacity=0.7,
+        )
+    )
     fig.add_trace(
         go.Scatterpolar(
             r=player_closed,
@@ -191,25 +209,47 @@ def build_v2_archetype_radar_chart(player_name, reference_name, axis_labels, pla
             opacity=0.8,
         )
     )
-    fig.add_trace(
-        go.Scatterpolar(
-            r=reference_closed,
-            theta=closed_categories,
-            fill="toself",
-            name=f"{reference_name} (prototype)",
-            line_color="#ff007f",
-            opacity=0.5,
-        )
-    )
     fig.update_layout(
         polar=dict(
-            radialaxis=dict(visible=True, gridcolor="#444444", showticklabels=False),
+            radialaxis=dict(visible=True, range=[0, 100], gridcolor="#444444", showticklabels=False),
             angularaxis=dict(gridcolor="#444444"),
             bgcolor="rgba(0,0,0,0)",
         ),
         template="plotly_dark",
-        title=f"Playstyle Profile: {player_name} vs {reference_name}",
+        title=f"{player_name} — {archetype_name} (percentile vs {group} group)",
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.1, xanchor="center", x=0.5),
+    )
+    return fig
+
+
+def build_v2_archetype_fit_chart(player_name, distances, nearest):
+    """Horizontal bars of archetype fit (higher = closer) for a player's group.
+
+    ``distances`` maps archetype name → σ-distance; the nearest is highlighted.
+    """
+    names = list(distances.keys())
+    dists = [distances[name] for name in names]
+    dmin, dmax = min(dists), max(dists)
+    fits = [round(1.0 - (d - dmin) / (dmax - dmin), 3) if dmax > dmin else 1.0 for d in dists]
+    colors = ["#00d2ff" if name == nearest else "#5b6472" for name in names]
+    order = sorted(range(len(names)), key=lambda i: -fits[i])
+
+    fig = go.Figure(
+        go.Bar(
+            x=[fits[i] for i in order],
+            y=[names[i] for i in order],
+            orientation="h",
+            marker_color=[colors[i] for i in order],
+            text=[f"{dists[i]:.1f}σ" for i in order],
+            textposition="outside",
+            cliponaxis=False,
+        )
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"Archetype fit — {player_name}",
+        xaxis=dict(title="Fit (higher = closer)", range=[0, 1], showticklabels=False),
+        margin=dict(l=0),
     )
     return fig
