@@ -80,25 +80,24 @@ def apply_search_filter(df, search_query):
     return df[accent_free_names.str.contains(clean_query, na=False)]
 
 
-def render_sidebar_filters(clustered_data):
-    st.sidebar.header("Filters")
-
-    leagues = st.sidebar.multiselect(
-        "League",
-        sorted(clustered_data["comp"].dropna().unique()),
-    )
-    positions = st.sidebar.multiselect(
-        "Position",
-        sorted(clustered_data["primary_position"].dropna().unique()),
-    )
-    squads = st.sidebar.multiselect(
-        "Squad",
-        sorted(clustered_data["squad"].dropna().unique()),
-    )
-    playstyles = st.sidebar.multiselect(
-        "Playstyle",
-        sorted(clustered_data["Playstyle"].dropna().unique()),
-    )
+def render_v1_filters(clustered_data):
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        leagues = st.multiselect(
+            "League", sorted(clustered_data["comp"].dropna().unique()), key="v1_league"
+        )
+    with c2:
+        positions = st.multiselect(
+            "Position", sorted(clustered_data["primary_position"].dropna().unique()), key="v1_pos"
+        )
+    with c3:
+        squads = st.multiselect(
+            "Squad", sorted(clustered_data["squad"].dropna().unique()), key="v1_squad"
+        )
+    with c4:
+        playstyles = st.multiselect(
+            "Playstyle", sorted(clustered_data["Playstyle"].dropna().unique()), key="v1_style"
+        )
 
     return leagues, positions, squads, playstyles
 
@@ -239,34 +238,11 @@ def render_h2h_section(filtered_df):
     )
 
 
-def render_v2_sidebar_filters(v2_data):
-    st.sidebar.header("Filters")
-
-    positions = st.sidebar.multiselect(
-        "Position",
-        sorted(v2_data["position_detail"].dropna().unique()),
-    )
-    squads = st.sidebar.multiselect(
-        "Squad",
-        sorted(v2_data["squad_display"].dropna().unique()),
-    )
-    playstyles = st.sidebar.multiselect(
-        "Playstyle",
-        sorted(v2_data["playstyle_cluster_v2"].dropna().unique()),
-    )
-
-    return positions, squads, playstyles
-
-
-def render_v2_distribution(v2_data, filtered_df):
+def render_v2_distribution(v2_data):
     st.subheader("Archetype Distribution")
 
     unrepresented = get_unrepresented_archetypes(v2_data)
-    if filtered_df.empty:
-        st.info("No players match the current filters.")
-        return
-
-    dist_df = build_distribution_dataframe(filtered_df)
+    dist_df = build_distribution_dataframe(v2_data)
     st.plotly_chart(build_v2_distribution_chart(dist_df), width="stretch")
 
     if unrepresented:
@@ -277,16 +253,12 @@ def render_v2_distribution(v2_data, filtered_df):
         )
 
 
-def render_v2_search(v2_data, filtered_df):
+def render_v2_search(v2_data):
     st.markdown("## Find a player")
     st.caption(
         "Search any World Cup 2022 player to see their playstyle — position, "
         "archetype, and percentile profile against their position group."
     )
-
-    if filtered_df.empty:
-        st.info("No players match the current filters.")
-        return
 
     query = st.text_input(
         "Search for a player",
@@ -296,24 +268,24 @@ def render_v2_search(v2_data, filtered_df):
     )
 
     if query:
-        matches = apply_search_filter(filtered_df, query)
+        matches = apply_search_filter(v2_data, query)
         if matches.empty:
             st.warning(f"No players match “{query}”.")
             return
         options = sorted(matches["player_label"].unique())
     else:
         featured = ["Lionel Messi", "Kylian Mbappé", "Kevin De Bruyne", "Jude Bellingham", "Vinícius Júnior"]
-        available = [p for p in featured if p in set(filtered_df["player_label"])]
-        options = available or sorted(filtered_df["player_label"].unique())[:5]
+        available = [p for p in featured if p in set(v2_data["player_label"])]
+        options = available or sorted(v2_data["player_label"].unique())[:5]
 
     selected = st.selectbox(
         "Player", options, label_visibility="collapsed", key="v2_search_select"
     )
-    player_row = filtered_df[filtered_df["player_label"] == selected].iloc[0]
+    player_row = v2_data[v2_data["player_label"] == selected].iloc[0]
     group = player_row["position_v2"]
     radar = build_player_radar_data(v2_data, player_row, group)
 
-    st.markdown(f"## {player_row['player']}")
+    st.markdown(f"## {player_row['player_display']}")
     st.markdown(
         f"**{player_row['position_detail']}** · {player_row['squad_display']} · "
         f"*{player_row['playstyle_cluster_v2']}*"
@@ -352,20 +324,44 @@ def render_v2_search(v2_data, filtered_df):
         )
 
 
-def render_v2_players(filtered_df):
+def render_v2_players(v2_data):
+    col_pos, col_squad, col_style = st.columns(3)
+    with col_pos:
+        positions = st.multiselect(
+            "Position", sorted(v2_data["position_detail"].dropna().unique()),
+            key="v2_f_pos",
+        )
+    with col_squad:
+        squads = st.multiselect(
+            "Squad", sorted(v2_data["squad_display"].dropna().unique()),
+            key="v2_f_squad",
+        )
+    with col_style:
+        playstyles = st.multiselect(
+            "Playstyle", sorted(v2_data["playstyle_cluster_v2"].dropna().unique()),
+            key="v2_f_style",
+        )
+
     query = st.text_input(
         "Filter by name",
         placeholder="Search players…",
         label_visibility="collapsed",
         key="v2_players_search",
     )
-    table_df = apply_search_filter(filtered_df, query) if query else filtered_df
+
+    table_df = filter_v2_dataframe(
+        v2_data,
+        positions=positions or None,
+        squads=squads or None,
+        playstyles=playstyles or None,
+    )
+    table_df = apply_search_filter(table_df, query) if query else table_df
     table_df = table_df.sort_values("player", kind="stable").copy()
     for col in ("gls_p90", "Ast_p90"):
         if col in table_df.columns:
             table_df[col] = table_df[col].round(2)
     display_columns = [
-        "player", "squad_display", "position_detail", "playstyle_cluster_v2",
+        "player_display", "squad_display", "position_detail", "playstyle_cluster_v2",
         "gls_p90", "Ast_p90",
     ]
     st.dataframe(
@@ -375,10 +371,10 @@ def render_v2_players(filtered_df):
     )
 
 
-def render_v2_h2h(filtered_df):
+def render_v2_h2h(v2_data):
     st.subheader("Head-to-Head Player Comparison")
 
-    player_options = sorted(filtered_df["player_label"].dropna().unique())
+    player_options = sorted(v2_data["player_label"].dropna().unique())
     if len(player_options) < 2:
         st.info("Select a broader filter set to compare at least two players.")
         return
@@ -399,8 +395,8 @@ def render_v2_h2h(filtered_df):
     if not player1_label or not player2_label:
         return
 
-    p1 = filtered_df[filtered_df["player_label"] == player1_label].iloc[0]
-    p2 = filtered_df[filtered_df["player_label"] == player2_label].iloc[0]
+    p1 = v2_data[v2_data["player_label"] == player1_label].iloc[0]
+    p2 = v2_data[v2_data["player_label"] == player2_label].iloc[0]
 
     same_group = p1["position_v2"] == p2["position_v2"]
     if not same_group:
@@ -481,26 +477,18 @@ def render_v2_view():
         st.error(str(e))
         st.stop()
 
-    positions, squads, playstyles = render_v2_sidebar_filters(v2_data)
-    filtered_df = filter_v2_dataframe(
-        v2_data,
-        positions=positions or None,
-        squads=squads or None,
-        playstyles=playstyles or None,
-    )
-
     tab_search, tab_players, tab_dist, tab_compare, tab_ref = st.tabs([
         "🔍 Search", "👥 Players", "📊 Distribution", "⚔️ Compare", "📚 Reference",
     ])
 
     with tab_search:
-        render_v2_search(v2_data, filtered_df)
+        render_v2_search(v2_data)
     with tab_players:
-        render_v2_players(filtered_df)
+        render_v2_players(v2_data)
     with tab_dist:
-        render_v2_distribution(v2_data, filtered_df)
+        render_v2_distribution(v2_data)
     with tab_compare:
-        render_v2_h2h(filtered_df)
+        render_v2_h2h(v2_data)
     with tab_ref:
         render_v2_archetype_browser(v2_data)
 
@@ -533,15 +521,18 @@ def _inject_theme_css():
 
 st.set_page_config(page_title="Football Playstyle Explorer", layout="wide")
 _inject_theme_css()
-st.title("Football Playstyle Explorer")
 
-dataset = st.sidebar.radio(
-    "Dataset",
-    ["v2 — World Cup 2022", "v1 — Big-5 Leagues 2025/26"],
-    index=0,
-    help="Switch between the World Cup 2022 build (20 position-scoped archetypes) "
-    "and the legacy Big-5 leagues build.",
-)
+top_left, top_right = st.columns([8, 1], vertical_alignment="center")
+with top_left:
+    st.title("Football Playstyle Explorer")
+with top_right:
+    with st.popover("⚙️ Settings", use_container_width=True):
+        dataset = st.radio(
+            "Dataset",
+            ["v2 — World Cup 2022", "v1 — Big-5 Leagues 2025/26"],
+            index=0,
+            key="dataset",
+        )
 
 if dataset.startswith("v2"):
     render_v2_view()
@@ -557,7 +548,7 @@ except ValueError as e:
     st.error(str(e))
     st.stop()
 
-leagues, positions, squads, playstyles = render_sidebar_filters(clustered_data)
+leagues, positions, squads, playstyles = render_v1_filters(clustered_data)
 
 filtered_df = filter_dataframe(
     clustered_data,

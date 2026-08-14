@@ -49,6 +49,7 @@ V2_COMPARE_STATS = {
 
 V2_DISPLAY_LABELS = {
     "player": "Player",
+    "player_display": "Player",
     "squad_display": "Squad",
     "position_v2": "Position Group",
     "position_detail": "Position",
@@ -126,6 +127,22 @@ def _squad_display(squad):
     return squad
 
 
+def country_flag(squad):
+    """Flag emoji for a player's national team (FBref ``"au Australia"`` → 🇦🇺)."""
+    if not isinstance(squad, str):
+        return ""
+    code = squad.split(" ")[0].upper()
+    special = {
+        "ENG": "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f",  # England
+        "WLS": "\U0001f3f4\U000e0067\U000e0062\U000e0077\U000e006c\U000e0073\U000e007f",  # Wales
+    }
+    if code in special:
+        return special[code]
+    if len(code) == 2 and code.isalpha():
+        return chr(0x1F1E6 + ord(code[0]) - 65) + chr(0x1F1E6 + ord(code[1]) - 65)
+    return ""
+
+
 def _add_player_label(df):
     """Add ``player_label`` (name, squad-suffixed only for duplicate names)."""
     df = df.copy()
@@ -152,6 +169,8 @@ def load_v2_clustered_data(filepath):
     clustered = ve.group_and_cluster(master)
     clustered = _add_player_label(clustered)
     clustered["squad_display"] = clustered["squad"].map(_squad_display)
+    clustered["flag"] = clustered["squad"].map(country_flag)
+    clustered["player_display"] = clustered["flag"] + " " + clustered["player"]
     clustered = add_v2_percentiles(clustered)
     return clustered
 
