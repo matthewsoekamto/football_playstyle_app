@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import streamlit as st
 
 import v2_model_engine as ve
 
@@ -156,7 +155,6 @@ def _add_player_label(df):
     return df
 
 
-@st.cache_data
 def load_v2_clustered_data(filepath):
     """Load + cluster the v2 master CSV and add display columns.
 
@@ -164,6 +162,10 @@ def load_v2_clustered_data(filepath):
     rows) rather than loading persisted artifacts — this sidesteps the
     "stale labels on code change" persistence caveat in CLAUDE.md. ``models_v2/``
     remains for the headless ``--persist`` / ``--evaluate`` workflow only.
+
+    Intentionally NOT ``@st.cache_data``-wrapped: the result is cheap to
+    recompute and the cache key (filepath) would silently serve a stale schema
+    whenever this function's output columns change.
     """
     master = pd.read_csv(filepath)
     clustered = ve.group_and_cluster(master)
