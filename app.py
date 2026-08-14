@@ -277,28 +277,47 @@ def render_v2_distribution(v2_data, filtered_df):
         )
 
 
-def render_v2_explorer(v2_data, filtered_df):
-    st.subheader("Playstyle Explorer")
-
+def render_v2_search(v2_data, filtered_df):
+    st.markdown("## Find a player")
     st.caption(
-        "Each radar shows a player's percentiles within their position group "
-        "(100 = the group's best on that trait, 50 = the group median)."
+        "Search any World Cup 2022 player to see their playstyle — position, "
+        "archetype, and percentile profile against their position group."
     )
 
     if filtered_df.empty:
         st.info("No players match the current filters.")
         return
 
-    player_options = sorted(filtered_df["player_label"].dropna().unique())
-    selected_label = st.selectbox(
-        "Select a player:", player_options, key="v2_explorer_player"
+    query = st.text_input(
+        "Search for a player",
+        placeholder="e.g. Messi, Mbappé, De Bruyne…",
+        label_visibility="collapsed",
+        key="v2_search_player",
     )
-    if not selected_label:
-        return
 
-    player_row = filtered_df[filtered_df["player_label"] == selected_label].iloc[0]
+    if query:
+        matches = apply_search_filter(filtered_df, query)
+        if matches.empty:
+            st.warning(f"No players match “{query}”.")
+            return
+        options = sorted(matches["player_label"].unique())
+    else:
+        featured = ["Lionel Messi", "Kylian Mbappé", "Kevin De Bruyne", "Jude Bellingham", "Vinícius Júnior"]
+        available = [p for p in featured if p in set(filtered_df["player_label"])]
+        options = available or sorted(filtered_df["player_label"].unique())[:5]
+
+    selected = st.selectbox(
+        "Player", options, label_visibility="collapsed", key="v2_search_select"
+    )
+    player_row = filtered_df[filtered_df["player_label"] == selected].iloc[0]
     group = player_row["position_v2"]
     radar = build_player_radar_data(v2_data, player_row, group)
+
+    st.markdown(f"## {player_row['player']}")
+    st.markdown(
+        f"**{player_row['position_detail']}** · {player_row['squad_display']} · "
+        f"*{player_row['playstyle_cluster_v2']}*"
+    )
 
     col1, col2 = st.columns([1, 1])
     with col1:
@@ -321,18 +340,39 @@ def render_v2_explorer(v2_data, filtered_df):
             )
         else:
             st.markdown(f"**Assigned archetype:** {radar['assigned']}")
-
         traits = archetype_traits(group, radar["reference"])
         if traits:
             summary = ", ".join(label for label, _ in traits[:6])
             st.markdown(f"*{radar['reference']}* — {summary}.")
-
         st.plotly_chart(
             build_v2_archetype_fit_chart(
                 radar["player_name"], radar["distances"], radar["nearest"]
             ),
             width="stretch",
         )
+
+
+def render_v2_players(filtered_df):
+    query = st.text_input(
+        "Filter by name",
+        placeholder="Search players…",
+        label_visibility="collapsed",
+        key="v2_players_search",
+    )
+    table_df = apply_search_filter(filtered_df, query) if query else filtered_df
+    table_df = table_df.sort_values("player", kind="stable").copy()
+    for col in ("gls_p90", "Ast_p90"):
+        if col in table_df.columns:
+            table_df[col] = table_df[col].round(2)
+    display_columns = [
+        "player", "squad_display", "position_detail", "playstyle_cluster_v2",
+        "gls_p90", "Ast_p90",
+    ]
+    st.dataframe(
+        format_v2_display_table(table_df, display_columns),
+        width="stretch",
+        hide_index=True,
+    )
 
 
 def render_v2_h2h(filtered_df):
@@ -449,37 +489,20 @@ def render_v2_view():
         playstyles=playstyles or None,
     )
 
-    st.subheader("Search and Filter Players")
-    search_query = st.text_input(
-        "Type a player's name to filter the table:", "", key="v2_search"
-    )
-    filtered_df = apply_search_filter(filtered_df, search_query)
+    tab_search, tab_players, tab_dist, tab_compare, tab_ref = st.tabs([
+        "🔍 Search", "👥 Players", "📊 Distribution", "⚔️ Compare", "📚 Reference",
+    ])
 
-    table_df = filtered_df.sort_values("player", kind="stable").copy()
-    for col in ("gls_p90", "Ast_p90"):
-        if col in table_df.columns:
-            table_df[col] = table_df[col].round(2)
-    display_columns = [
-        "player", "squad_display", "position_detail", "playstyle_cluster_v2",
-        "gls_p90", "Ast_p90",
-    ]
-    st.dataframe(
-        format_v2_display_table(table_df, display_columns),
-        width="stretch",
-        hide_index=True,
-    )
-
-    st.divider()
-    render_v2_distribution(v2_data, filtered_df)
-
-    st.divider()
-    render_v2_explorer(v2_data, filtered_df)
-
-    st.divider()
-    render_v2_archetype_browser(v2_data)
-
-    st.divider()
-    render_v2_h2h(filtered_df)
+    with tab_search:
+        render_v2_search(v2_data, filtered_df)
+    with tab_players:
+        render_v2_players(filtered_df)
+    with tab_dist:
+        render_v2_distribution(v2_data, filtered_df)
+    with tab_compare:
+        render_v2_h2h(filtered_df)
+    with tab_ref:
+        render_v2_archetype_browser(v2_data)
 
 
 def _inject_theme_css():
