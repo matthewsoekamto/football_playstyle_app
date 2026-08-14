@@ -834,6 +834,7 @@ def merge_position_v2(master, sb_positions):
                 lookup.setdefault(normalize_name(variant), (pid, teams))
 
     master["position_v2"] = "Unknown"
+    master["position_detail"] = "Unknown"
     pid_to_row = {}
     resolved = np.full(len(master), np.nan)
     for idx, r in master.iterrows():
@@ -862,6 +863,7 @@ def merge_position_v2(master, sb_positions):
         if pid not in by_pid.index:
             continue
         master.at[idx, "position_v2"] = by_pid.loc[pid, "position_v2"]
+        master.at[idx, "position_detail"] = by_pid.loc[pid, "position_detail"]
     return master
 
 

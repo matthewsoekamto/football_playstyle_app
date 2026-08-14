@@ -50,7 +50,8 @@ V2_COMPARE_STATS = {
 V2_DISPLAY_LABELS = {
     "player": "Player",
     "squad_display": "Squad",
-    "position_v2": "Position",
+    "position_v2": "Position Group",
+    "position_detail": "Position",
     "playstyle_cluster_v2": "Playstyle",
 }
 
@@ -155,11 +156,11 @@ def load_v2_clustered_data(filepath):
     return clustered
 
 
-def filter_v2_dataframe(df, groups=None, squads=None, playstyles=None):
-    """Filter the clustered v2 frame on position_v2 / squad / playstyle."""
+def filter_v2_dataframe(df, positions=None, squads=None, playstyles=None):
+    """Filter the clustered v2 frame on fine position / squad / playstyle."""
     filtered = df.copy()
-    if groups:
-        filtered = filtered[filtered["position_v2"].isin(groups)]
+    if positions:
+        filtered = filtered[filtered["position_detail"].isin(positions)]
     if squads:
         filtered = filtered[filtered["squad_display"].isin(squads)]
     if playstyles:

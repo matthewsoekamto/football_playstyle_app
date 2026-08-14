@@ -482,6 +482,26 @@ POSITION_GROUP_MAP = {
     "Left Center Forward": "ST",
 }
 
+# Display-only fine position labels (ADR-013): the same raw lineup position,
+# mapped to conventional side/role naming for the UI. Clustering stays on the
+# coarse POSITION_GROUP_MAP above; this map is never used by the engine.
+POSITION_FINE_MAP = {
+    "Goalkeeper": "GK",
+    "Center Back": "CB", "Right Center Back": "CB", "Left Center Back": "CB",
+    "Right Back": "RB", "Left Back": "LB",
+    "Right Wing Back": "RWB", "Left Wing Back": "LWB",
+    "Defensive Midfield": "DM", "Right Defensive Midfield": "DM",
+    "Center Defensive Midfield": "DM", "Left Defensive Midfield": "DM",
+    "Right Center Midfield": "CM", "Center Midfield": "CM",
+    "Left Center Midfield": "CM",
+    "Right Attacking Midfield": "AM", "Center Attacking Midfield": "AM",
+    "Left Attacking Midfield": "AM",
+    "Right Midfield": "RM", "Left Midfield": "LM",
+    "Right Wing": "RW", "Left Wing": "LW",
+    "Right Center Forward": "ST", "Center Forward": "ST",
+    "Left Center Forward": "ST",
+}
+
 
 def _ts_to_seconds(ts) -> float | None:
     """Parse a StatsBomb match-clock timestamp (``"MM:SS"``) into seconds."""
@@ -589,6 +609,8 @@ def parse_lineups(data_dir: str | Path) -> pd.DataFrame:
             "teams": ";".join(sorted(rec["teams"])),
             "position_v2": (POSITION_GROUP_MAP.get(best, "Unknown")
                             if best else "Unknown"),
+            "position_detail": (POSITION_FINE_MAP.get(best, "Unknown")
+                                if best else "Unknown"),
             "position_minutes": rec["minutes"],
         })
 

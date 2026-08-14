@@ -754,6 +754,22 @@ def test_position_group_map_covers_data_names():
     assert p.POSITION_GROUP_MAP["Center Forward"] == "ST"
 
 
+def test_position_fine_map():
+    """The fine map refines MF/Wide/FB-WB; CB/ST/GK stay coarse; same domain."""
+    assert p.POSITION_FINE_MAP["Left Back"] == "LB"
+    assert p.POSITION_FINE_MAP["Right Wing Back"] == "RWB"
+    assert p.POSITION_FINE_MAP["Defensive Midfield"] == "DM"
+    assert p.POSITION_FINE_MAP["Center Midfield"] == "CM"
+    assert p.POSITION_FINE_MAP["Left Attacking Midfield"] == "AM"
+    assert p.POSITION_FINE_MAP["Right Midfield"] == "RM"
+    assert p.POSITION_FINE_MAP["Left Wing"] == "LW"
+    assert p.POSITION_FINE_MAP["Center Back"] == "CB"
+    assert p.POSITION_FINE_MAP["Center Forward"] == "ST"
+    assert p.POSITION_FINE_MAP["Goalkeeper"] == "GK"
+    # Same domain as the coarse map — every raw position maps to a fine label.
+    assert set(p.POSITION_FINE_MAP) == set(p.POSITION_GROUP_MAP)
+
+
 def test_ts_to_seconds():
     assert p._ts_to_seconds("00:00") == 0
     assert p._ts_to_seconds("50:24") == 3024
@@ -776,6 +792,7 @@ def test_parse_lineups_duration_weighted(tmp_path):
     assert len(df) == 1
     row = df.iloc[0]
     assert row["position_v2"] == "MF"
+    assert row["position_detail"] == "CM"  # 60 min Left Center Midfield wins
     # 60 min at LCM + 30 min at CAM (final whistle from events at 90:00).
     assert row["position_minutes"] == pytest.approx(90.0)
 
@@ -850,7 +867,7 @@ def test_parse_lineups_multi_match_aggregate(tmp_path):
 def _sb_positions_frame(rows):
     df = pd.DataFrame(rows, columns=[
         "player_id", "player_name", "name_variants", "teams",
-        "position_v2", "position_minutes"])
+        "position_v2", "position_detail", "position_minutes"])
     return df.astype({"player_id": int})
 
 
@@ -858,14 +875,16 @@ def test_merge_position_v2_attaches():
     """Position groups attach via the shared identity bridge; others stay Unknown."""
     sb_pos = _sb_positions_frame([
         {"player_id": 1, "player_name": "Alice GK", "name_variants": "Alice GK",
-         "teams": "Denmark", "position_v2": "GK", "position_minutes": 90.0},
+         "teams": "Denmark", "position_v2": "GK", "position_detail": "GK", "position_minutes": 90.0},
         {"player_id": 2, "player_name": "Bob Out", "name_variants": "Bob Out",
-         "teams": "Tunisia", "position_v2": "CB", "position_minutes": 85.0},
+         "teams": "Tunisia", "position_v2": "CB", "position_detail": "CB", "position_minutes": 85.0},
     ])
     master = b.merge_position_v2(_base_master(), sb_pos)
     m = master.set_index("player")
     assert m.loc["Alice GK", "position_v2"] == "GK"
+    assert m.loc["Alice GK", "position_detail"] == "GK"
     assert m.loc["Bob Out", "position_v2"] == "CB"
+    assert m.loc["Bob Out", "position_detail"] == "CB"
     # No lineup data (or no player_sb) -> Unknown.
     assert m.loc["Carol Out", "position_v2"] == "Unknown"
     assert m.loc["No Events", "position_v2"] == "Unknown"

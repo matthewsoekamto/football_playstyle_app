@@ -208,6 +208,8 @@ build_master_dataset.py ── FBref CSVs ──► data/wc2022_players_master.c
 
 **position_v2:** `parse_lineups()` computes each player's **duration-weighted most-played position** from StatsBomb lineup `positions[]` segments (final-whistle clock read from the match's events file, `max(minute*60+second)`), mapped to 6 groups (GK/CB/FB-WB/MF/Wide/ST). Real distribution for the 217 eligible players: **GK=28, CB=59, FB/WB=36, MF=55, Wide=21, ST=18**. `merge_position_v2()` writes `master["position_v2"]` via the shared identity bridge; the 4-way `position_group` column is untouched.
 
+**position_detail (ADR-013):** `parse_lineups` also emits a finer display label via `POSITION_FINE_MAP` — MF→DM/CM/AM/LM/RM, Wide→LW/RW, FB/WB→LB/RB/LWB/RWB — used by the UI (table + sidebar filter), while clustering stays on the coarse `position_v2`. CB/ST/GK stay coarse. Real distribution: CB 59 · DM 32 · GK 28 · LB 19 · ST 18 · CM 16 · RB 13 · LW 12 · RW 9 · RM 4 · AM 3 · LWB 2 · RWB 2.
+
 **P7 (position-scoped KMeans engine):** `v2_model_engine.py` is a **headless** engine (no streamlit in the import graph) that fits one KMeans per `position_v2` group on the P6 master — k = 2/3/3/5/3/3 (GK/CB/FB-WB/MF/Wide/ST), `random_state=42`, `n_init=10` — standardizes per group, and labels each cluster against the **20 σ-offset archetypes** (ST has 4 archetypes but k=3, so Poacher is retained-but-unpopulated — see ADR-011). `models_v2/` persists per-group scalers + KMeans, `cluster_labels_v2.json`, and `metadata_v2.json` (dataset SHA256, row/group counts, per-group features, library versions). CLI: `python v2_model_engine.py --persist` / `--evaluate`.
 
 **P7 key design points:**

@@ -199,3 +199,19 @@ Authority: subordinate to `PROJECT_CONSTITUTION.md`. Each record below is recons
 - **Radar in σ-space:** archetypes are σ-offsets and clustering is standardized, so the radar plots standardized (σ) profiles overlaid with the archetype prototype — which also resolves the mixed-units problem (per-90 vs % vs a spatial coordinate).
 
 **Tradeoffs:** Two datasets in one app means two filter sets and two render paths, cleanly separated by the selector + `st.stop()`. Fresh-fit on every cold start (`load_v2_clustered_data` fits `group_and_cluster`, <1s for 217 rows) trades a tiny startup cost for immunity to the "stale labels on code change" persistence caveat; `models_v2/` remains for the headless `--persist`/`--evaluate` workflow.
+
+---
+
+## ADR-013: Fine-grained position labels (display-only) via POSITION_FINE_MAP
+
+**Context:** `position_v2` uses 6 coarse groups (GK/CB/FB-WB/MF/Wide/ST). For the UI, the owner wants conventional side/role labels: MF → DM/CM/AM/LM/RM, Wide → LW/RW/LM/RM, FB/WB → LB/RB/LWB/RWB. The fine side/role info already exists in the StatsBomb lineup data (raw `position` strings like "Left Back", "Right Wing"), but `parse_lineups` mapped each to the coarse group and discarded the fine detail.
+
+**Options considered:**
+- (A) Re-cluster on fine positions — infeasible: several groups are tiny (LWB 2, RWB 2, AM 3, RM 4) and would be catastrophically unstable (see ADR-010/ADR-011 on small-n stability).
+- (B) Add a `position_detail` column (fine label) for display/filtering, keep clustering on the coarse `position_v2` (chosen).
+
+**Chosen:** (B) — `POSITION_FINE_MAP` (raw StatsBomb position → fine label) added in `statsbomb_parser.py`; `parse_lineups` emits `position_detail` next to `position_v2`; `merge_position_v2` attaches both. The master CSV gains one column (193 total). CB/ST/GK stay coarse (the owner only asked for MF/Wide/FB-WB). Real distribution: CB 59 · DM 32 · GK 28 · LB 19 · ST 18 · CM 16 · RB 13 · LW 12 · RW 9 · RM 4 · AM 3 · LWB 2 · RWB 2.
+
+**Why:** The naming is a *presentation* concern; the clustering is a *statistical* concern. Keeping them separate means the user sees LB/RB/DM/CM/LW/RW etc., while the engine still clusters on groups with enough players to be stable. `POSITION_FINE_MAP` shares the exact same domain as `POSITION_GROUP_MAP` (locked by a test), so the two stay consistent.
+
+**Tradeoffs:** CB/ST/GK are not side-refined (LCB/RCB, LF/RF) — left coarse for now; a future refinement is a one-line map addition. `position_detail` is derived from the single most-played lineup position (same simplification as `position_v2`, ADR-003), so a player who split wide/central time is binned by their most common slot.

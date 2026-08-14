@@ -242,9 +242,9 @@ def render_h2h_section(filtered_df):
 def render_v2_sidebar_filters(v2_data):
     st.sidebar.header("Filters")
 
-    groups = st.sidebar.multiselect(
+    positions = st.sidebar.multiselect(
         "Position",
-        sorted(v2_data["position_v2"].dropna().unique()),
+        sorted(v2_data["position_detail"].dropna().unique()),
     )
     squads = st.sidebar.multiselect(
         "Squad",
@@ -255,7 +255,7 @@ def render_v2_sidebar_filters(v2_data):
         sorted(v2_data["playstyle_cluster_v2"].dropna().unique()),
     )
 
-    return groups, squads, playstyles
+    return positions, squads, playstyles
 
 
 def render_v2_distribution(v2_data, filtered_df):
@@ -441,10 +441,10 @@ def render_v2_view():
         st.error(str(e))
         st.stop()
 
-    groups, squads, playstyles = render_v2_sidebar_filters(v2_data)
+    positions, squads, playstyles = render_v2_sidebar_filters(v2_data)
     filtered_df = filter_v2_dataframe(
         v2_data,
-        groups=groups or None,
+        positions=positions or None,
         squads=squads or None,
         playstyles=playstyles or None,
     )
@@ -460,7 +460,7 @@ def render_v2_view():
         if col in table_df.columns:
             table_df[col] = table_df[col].round(2)
     display_columns = [
-        "player", "squad_display", "position_v2", "playstyle_cluster_v2",
+        "player", "squad_display", "position_detail", "playstyle_cluster_v2",
         "gls_p90", "Ast_p90",
     ]
     st.dataframe(

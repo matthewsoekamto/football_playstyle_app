@@ -26,25 +26,25 @@ def _synthetic_clustered_df():
     return pd.DataFrame([
         {
             "player": "gk1", "player_label": "gk1", "squad": "br Brazil",
-            "squad_display": "Brazil", "position_v2": "GK", "cluster_id_v2": 0,
+            "squad_display": "Brazil", "position_v2": "GK", "position_detail": "GK", "cluster_id_v2": 0,
             "playstyle_cluster_v2": "Shot Stopper",
             "Saves_p90": 3.0, "save_pct": 0.75, "gls_p90": 0.0, "Ast_p90": 0.0,
         },
         {
             "player": "gk2", "player_label": "gk2", "squad": "ar Argentina",
-            "squad_display": "Argentina", "position_v2": "GK", "cluster_id_v2": 1,
+            "squad_display": "Argentina", "position_v2": "GK", "position_detail": "GK", "cluster_id_v2": 1,
             "playstyle_cluster_v2": "Traditional Goalkeeper",
             "Saves_p90": 1.0, "save_pct": 0.60, "gls_p90": 0.0, "Ast_p90": 0.0,
         },
         {
             "player": "st1", "player_label": "st1", "squad": "fr France",
-            "squad_display": "France", "position_v2": "ST", "cluster_id_v2": 0,
+            "squad_display": "France", "position_v2": "ST", "position_detail": "ST", "cluster_id_v2": 0,
             "playstyle_cluster_v2": "Complete Forward",
             "Saves_p90": 0.0, "save_pct": 0.0, "gls_p90": 0.8, "Ast_p90": 0.1,
         },
         {
             "player": "st2", "player_label": "st2", "squad": "ar Argentina",
-            "squad_display": "Argentina", "position_v2": "ST", "cluster_id_v2": 1,
+            "squad_display": "Argentina", "position_v2": "ST", "position_detail": "ST", "cluster_id_v2": 1,
             "playstyle_cluster_v2": "False 9",
             "Saves_p90": 0.0, "save_pct": 0.0, "gls_p90": 0.4, "Ast_p90": 0.5,
         },
@@ -53,8 +53,8 @@ def _synthetic_clustered_df():
 
 def test_filter_v2_dataframe_groups():
     df = _synthetic_clustered_df()
-    result = vf.filter_v2_dataframe(df, groups=["ST"])
-    assert set(result["position_v2"]) == {"ST"}
+    result = vf.filter_v2_dataframe(df, positions=["ST"])
+    assert set(result["position_detail"]) == {"ST"}
     assert len(result) == 2
 
 
@@ -67,7 +67,7 @@ def test_filter_v2_dataframe_squads_and_playstyles():
 
 def test_filter_v2_dataframe_empty_result():
     df = _synthetic_clustered_df()
-    result = vf.filter_v2_dataframe(df, groups=["CB"])
+    result = vf.filter_v2_dataframe(df, positions=["CB"])
     assert result.empty
 
 
@@ -122,7 +122,7 @@ def test_v2_friendly_label_representative():
 
 def test_format_v2_display_table():
     df = _synthetic_clustered_df()
-    out = vf.format_v2_display_table(df, ["player", "position_v2", "playstyle_cluster_v2"])
+    out = vf.format_v2_display_table(df, ["player", "position_detail", "playstyle_cluster_v2"])
     assert out.columns.tolist() == ["#", "Player", "Position", "Playstyle"]
     assert len(out) == len(df)
 
