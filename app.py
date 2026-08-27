@@ -12,6 +12,7 @@ from charts import (
     build_v2_archetype_fit_chart,
     build_v2_archetype_radar_chart,
     build_v2_distribution_chart,
+    build_v2_percentile_bars,
 )
 from features import (
     EXPLORER_GK_FEATURES,
@@ -293,8 +294,9 @@ def render_v2_search(v2_data):
 
     st.markdown(f"## {player_row['player_display']}")
     st.markdown(
-        f"**{player_row['position_detail']}** · {player_row['squad_display']} · "
-        f"*{player_row['playstyle_cluster_v2']}*"
+        f"<span class='archetype-chip'>{player_row['playstyle_cluster_v2']}</span> "
+        f"**{player_row['position_detail']}** · {player_row['squad_display']}",
+        unsafe_allow_html=True,
     )
 
     col1, col2 = st.columns([1, 1])
@@ -326,6 +328,20 @@ def render_v2_search(v2_data):
             build_v2_archetype_fit_chart(
                 radar["player_name"], radar["distances"], radar["nearest"]
             ),
+            width="stretch",
+        )
+
+    compare_stats, stat_names = get_compare_stats_for_group(group)
+    p_labels = []
+    p_values = []
+    for stat, name in zip(compare_stats, stat_names):
+        pcol = f"{stat}_percentile"
+        if pcol in player_row.index and pd.notna(player_row[pcol]):
+            p_labels.append(name)
+            p_values.append(float(player_row[pcol]))
+    if p_values:
+        st.plotly_chart(
+            build_v2_percentile_bars(player_row["player"], p_labels, p_values),
             width="stretch",
         )
 
@@ -475,6 +491,15 @@ def render_v2_archetype_browser(v2_data):
         )
 
 
+def render_v2_kpis(v2_data):
+    populated = len(all_archetypes()) - len(get_unrepresented_archetypes(v2_data))
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Players", f"{len(v2_data)}")
+    c2.metric("Position types", f"{v2_data['position_detail'].nunique()}")
+    c3.metric("Archetypes", f"{populated} / {len(all_archetypes())}")
+    c4.metric("National teams", f"{v2_data['squad_display'].nunique()}")
+
+
 def render_v2_view():
     try:
         with st.spinner("Loading World Cup 2022 dataset and calculating playstyles..."):
@@ -482,6 +507,8 @@ def render_v2_view():
     except (FileNotFoundError, ValueError) as e:
         st.error(str(e))
         st.stop()
+
+    render_v2_kpis(v2_data)
 
     tab_search, tab_players, tab_dist, tab_compare, tab_ref = st.tabs([
         "🔍 Search", "👥 Players", "📊 Distribution", "⚔️ Compare", "📚 Reference",
@@ -528,6 +555,17 @@ def _inject_theme_css():
             border: 1px solid #2b2b2b;
             border-radius: 10px;
             overflow: hidden;
+        }
+        .archetype-chip {
+            display: inline-block;
+            background: rgba(52, 211, 153, 0.14);
+            color: #34d399;
+            border: 1px solid rgba(52, 211, 153, 0.4);
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 0.82em;
+            font-weight: 600;
+            margin-right: 6px;
         }
         </style>
         """,

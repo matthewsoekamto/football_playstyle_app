@@ -259,3 +259,29 @@ def build_v2_archetype_fit_chart(player_name, distances, nearest):
         margin=dict(l=0),
     )
     return fig
+
+
+def build_v2_percentile_bars(player_name, labels, values):
+    """Horizontal percentile bars (0-100) with a 50-median reference line."""
+    order = sorted(range(len(labels)), key=lambda i: -values[i])
+    fig = go.Figure(
+        go.Bar(
+            x=[values[i] for i in order],
+            y=[labels[i] for i in order],
+            orientation="h",
+            marker_color="#34d399",
+            text=[f"{values[i]:.0f}" for i in order],
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="<b>%{y}</b><br>%{x:.0f}th percentile<extra></extra>",
+        )
+    )
+    fig.add_vline(x=50, line_dash="dot", line_color="#888888", opacity=0.7)
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"Key stats — {player_name}",
+        xaxis=dict(range=[0, 100], title="Percentile vs position group", showticklabels=False),
+        margin=dict(l=0),
+        showlegend=False,
+    )
+    return fig
