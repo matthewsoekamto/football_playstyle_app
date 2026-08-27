@@ -1,3 +1,4 @@
+import random
 import unicodedata
 
 import pandas as pd
@@ -253,6 +254,13 @@ def render_v2_distribution(v2_data):
         )
 
 
+FEATURED_PLAYERS = [
+    "Lionel Messi", "Kylian Mbappé", "Kevin De Bruyne", "Cristiano Ronaldo",
+    "Neymar", "Harry Kane", "Jude Bellingham", "Vinicius Júnior",
+    "Luka Modrić", "Robert Lewandowski",
+]
+
+
 def render_v2_search(v2_data):
     st.markdown("## Find a player")
     st.caption(
@@ -269,12 +277,17 @@ def render_v2_search(v2_data):
         key="v2_search_player",
     )
 
-    if not selected:
-        featured = ["Lionel Messi", "Kylian Mbappé", "Kevin De Bruyne", "Jude Bellingham", "Vinícius Júnior"]
-        st.caption("Try: " + " · ".join(featured))
-        return
+    if selected:
+        player_row = v2_data[v2_data["player_display"] == selected].iloc[0]
+    else:
+        if "v2_featured" not in st.session_state:
+            st.session_state["v2_featured"] = random.choice(FEATURED_PLAYERS)
+        featured_name = st.session_state["v2_featured"]
+        player_row = v2_data[v2_data["player"] == featured_name].iloc[0]
+        st.caption(
+            f"Showing {featured_name} as an example — search above to explore any player."
+        )
 
-    player_row = v2_data[v2_data["player_display"] == selected].iloc[0]
     group = player_row["position_v2"]
     radar = build_player_radar_data(v2_data, player_row, group)
 
@@ -493,12 +506,22 @@ def _inject_theme_css():
         <style>
         .stApp {
             font-family: "Inter", "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         [data-testid="stMetric"] {
             background-color: #1c1c1c;
             border: 1px solid #2b2b2b;
             border-radius: 10px;
             padding: 14px 16px;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+        [data-testid="stMetric"]:hover {
+            transform: translateY(-2px);
+            border-color: #34d399;
         }
         [data-testid="stMetricLabel"] { color: #a3a3a3; }
         [data-testid="stDataFrame"] {
@@ -517,7 +540,7 @@ _inject_theme_css()
 
 top_left, top_right = st.columns([8, 1], vertical_alignment="center")
 with top_left:
-    st.title("Football Playstyle Explorer")
+    st.title("⚽ Football Playstyle Explorer")
 with top_right:
     with st.popover("⚙️ Settings", use_container_width=True):
         dataset = st.radio(
