@@ -1,130 +1,116 @@
-# Football Playstyle App
+# Football Playstyle Explorer
 
-A Streamlit dashboard that clusters football players into human-readable playstyles using per-90 performance stats and K-Means clustering.
+A portfolio-grade Streamlit dashboard that clusters footballers into human-readable **playstyle archetypes** from real event data, then lets you explore them through percentile radars, player dossiers, and head-to-head comparisons.
 
-## Features
+Built on the **2022 World Cup** (StatsBomb Open Data + FBref), with a legacy Big-5-leagues view.
 
-- **Playstyle clustering** for outfield players (8 archetypes) and goalkeepers (2 archetypes)
-- **Sidebar filters** by league, position, squad, and playstyle
-- **Playstyle Explorer** with distribution chart, centroid radar, and representative players
-- **Elite outlier scatter plot** colored by playstyle
-- **Head-to-head comparison** with position-aware stats and position-scoped percentiles
+## What it does
 
-## Requirements
+From per-90 performance and event-derived stats, the app fits a **position-scoped K-Means** model and labels every cluster against a hand-authored taxonomy of **20 archetypes** — "Deep-Lying Playmaker", "Inverted Winger", "False 9", "Target Man", and more. You can:
 
-- Python 3.10+
-- Dependencies listed in `requirements.txt`
+- **Search any player** (autocomplete) and read a full dossier: position, archetype, percentile radar, and how they rank on every key stat against their position group.
+- **Browse the 20 archetypes** — what each one means and which players are closest to it.
+- **Compare two players** head-to-head with position-scoped percentiles.
+- **See the distribution** of players across archetypes and position groups.
 
-## Setup
+## Quick start
 
 ```bash
 pip install -r requirements.txt
-```
-
-Place the dataset `players_data_light-2025_2026.csv` in the project root (included in this repo).
-
-## Run locally
-
-```bash
 streamlit run app.py
 ```
 
-The app opens at `http://localhost:8501`.
+The World Cup 2022 dataset is bundled in `data/wc2022_players_master.csv` (217 players), so it runs out of the box. Switch to the legacy Big-5 view from the ⚙️ Settings menu.
 
-## Project structure
+## Tech stack
+
+| Area | Tools |
+|---|---|
+| Language | Python 3.10+ |
+| App / UI | Streamlit + custom CSS theming |
+| Data | pandas, NumPy |
+| ML | scikit-learn (K-Means, StandardScaler, silhouette / Davies-Bouldin / adjusted-Rand) |
+| Visualization | Plotly |
+| Persistence | joblib + SHA256-validated metadata |
+| Data sources | StatsBomb Open Data (events, lineups), FBref |
+| Testing / lint | pytest, ruff |
+| CI | GitHub Actions |
+
+## Skills demonstrated
+
+This project was built as a portfolio-grade demonstration of production data/ML engineering. Concretely, it exercises:
+
+**Data engineering**
+- End-to-end ETL: raw StatsBomb event JSON + FBref CSVs → a clean **217-row × 193-column** master dataset.
+- **44 event-derived features** engineered from raw match events (pressures, recoveries, duels, shots/xG, passes, touches-by-zone), normalized per-90.
+- Defensive data cleaning: per-90 normalization, percentage-vs-count handling, div-by-zero/overflow guards, missing-value policy, column normalization.
+
+**Machine learning**
+- Deliberate, documented unsupervised methodology: **position-scoped K-Means** (one model per position group), `StandardScaler` standardization, fixed k driven by the product taxonomy, seeded (`random_state=42`) for full reproducibility.
+- Interpretable **archetype labeling** via σ-offset prototypes with a dimension-aware threshold — not black-box cluster IDs.
+- Evaluation beyond scores: silhouette + Davies-Bouldin **and** **bootstrap stability** (adjusted Rand index) to quantify how trustworthy the partition is, including a small-sample degeneracy guard.
+- Model persistence with dataset-hash invalidation, plus a **headless engine** (`--persist` / `--evaluate`) cleanly separated from the UI.
+
+**Visualization & UX**
+- Interactive Plotly dashboards: faceted distributions, percentile radar charts, horizontal percentile bars, player comparison.
+- Modern dashboard UX: dark theme, KPI strip, tabbed/progressive-disclosure navigation, autocomplete search, nationality flags.
+
+**Software engineering**
+- Clean modular architecture with strict one-way dependency direction and a UI-independent ML engine.
+- **130+ unit tests** locking contracts (data pipeline, determinism, persistence round-trip, archetype maps).
+- CI (ruff + pytest on every push), linting, and a documented decision log (ADRs) + project constitution.
+
+## Architecture
+
+```
+FBref CSVs  +  StatsBomb Open Data (events, lineups)
+        │
+        ▼
+statsbomb_parser.py      → 44 event-derived features + position
+build_master_dataset.py  → data/wc2022_players_master.csv (217 × 193)
+        │
+        ▼
+v2_model_engine.py       → per-position K-Means + 20 σ-offset archetypes (headless)
+        │
+        ▼
+v2_features.py           → app-facing load / filter / percentile / radar helpers
+app.py + charts.py       → Streamlit UI + pure Plotly figures
+```
 
 | File | Purpose |
-|------|---------|
-| `app.py` | Streamlit UI |
-| `data_loader.py` | CSV loading, cleaning, per-90 feature derivation |
-| `model_engine.py` | K-Means clustering, playstyle labeling, **model persistence** |
-| `features.py` | Filters, percentiles, position stat sets |
-| `charts.py` | Plotly chart builders |
+|---|---|
+| `app.py` | Streamlit UI, navigation, sections |
+| `v2_features.py` | v2 load / filter / display / radar helpers |
+| `v2_model_engine.py` | headless position-scoped clustering engine |
+| `statsbomb_parser.py` | StatsBomb events + lineups → features + position |
+| `build_master_dataset.py` | FBref + StatsBomb → master dataset |
+| `charts.py` | pure Plotly figure builders |
+| `features.py` / `model_engine.py` / `data_loader.py` | v1 legacy app |
+
+## ML methodology
+
+1. Standardize each position group's features (`StandardScaler`).
+2. Fit K-Means per group (k = 2/3/3/5/3/3 for GK / CB / FB-WB / MF / Wide / ST).
+3. Match each cluster centroid to the nearest σ-offset archetype prototype.
+4. Evaluate with silhouette + Davies-Bouldin, plus bootstrap ARI stability.
+
+Every stochastic step is seeded, so results are reproducible run-to-run.
 
 ## Dataset
 
-The application uses a processed dataset containing player season statistics from Europe's Big Five leagues:
+- **v2 (default):** FIFA World Cup 2022 — 217 players, 193 features, 6 position groups, 20 archetypes.
+- **v1 (legacy):** Big-5 European leagues (2025/26) — 2,183 players, 10 archetypes.
 
-- Premier League
-- La Liga
-- Serie A
-- Bundesliga
-- Ligue 1
-
-Only players with at least 270 minutes played are included to improve clustering stability.
-
-## Clustering Pipeline
-
-1. Load and clean player statistics
-2. Compute per-90 features
-3. Separate outfield players and goalkeepers
-4. Standardize features
-5. Cluster players using K-Means
-6. Assign human-readable playstyle labels
-7. Visualize results in Streamlit
-
-## Development
-
-Run clustering standalone (with evaluation metrics):
-
-```bash
-python model_engine.py
-```
-
-Run data loading standalone:
-
-```bash
-python data_loader.py
-```
-
-Run tests:
+## Testing & CI
 
 ```bash
 python -m pytest tests/ -v
+ruff check .
 ```
 
-## CI
+CI runs linting + the full suite on every push to `main`.
 
-[![CI](https://github.com/matthew/football-playstyle-app/actions/workflows/ci.yml/badge.svg)](https://github.com/matthew/football-playstyle-app/actions/workflows/ci.yml)
+## Limitations
 
-Every push runs linting (ruff) and the full test suite.
-
-## Model Persistence
-
-The app persists fitted `StandardScaler` + `KMeans` models to `models/` (gitignored) with metadata (dataset SHA256, row count, fit timestamp, library versions). On cold start, it loads persisted artifacts instead of refitting when the dataset hasn't changed — enabling fast startup and auditability.
-
-**The `models/` directory is auto-generated.** If no artifacts exist, the app fits a new model on first run and saves them. A fresh clone works immediately without these files.
-
-To explicitly fit and persist:
-
-```bash
-python model_engine.py --persist
-```
-## Tech Stack
-
-- Python
-- Streamlit
-- Pandas
-- NumPy
-- Scikit-learn
-- Plotly
-- Pytest
-- Ruff
-
-## Deploy
-
-To deploy on [Streamlit Community Cloud](https://streamlit.io/cloud):
-
-1. Push this repo to GitHub
-2. Connect the repo in Streamlit Cloud
-3. Set the main file to `app.py`
-4. Ensure `requirements.txt` is at the repo root
-
-## Current Limitations
-
-The current clustering model is trained using six outfield performance features.
-Because progression and dribbling statistics (e.g. carries, progressive carries,
-take-ons) are unavailable in the source dataset, some attacking playstyles
-cannot yet be distinguished reliably.
-
-These richer event-based features are planned for a future iteration.
+- The v2 build uses a single tournament, so a few archetypes are unrepresented and small position groups are less stable — quantified and documented via the bootstrap evaluation.
+- v1 (legacy) lacks progressive-carrying/dribbling data, which limits separation of some attacking playstyles.
